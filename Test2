@@ -17,7 +17,7 @@ local SoaringSpeed = 0.08      -- Soaring teleport delay (seconds)
 local SoaringSequences = 3     -- Soaring telemetry cycles (0 skips directly to void)
 local VoidDropDelay = 4        -- Final Void Drop hold delay (seconds)
 local FireworkInterval = 2     -- Firework/Combo hold interval (seconds)
-local SlamInterval = 2         -- Slam hold interval (editable)
+local SlamInterval = 0.2       -- Slam hold interval (default 0.2s, editable)
 local SlamOffsetDistance = 3   -- Distance/offset from victim for Slam (editable)
 local SelectedSlamTarget = nil -- Target Vector3 for directional Slam
 
@@ -714,7 +714,7 @@ local function Slam(targetInput, speaker: Player, customVelocity)
 			notify("Slam", "Executing directional slam on " .. TPlayer.Name .. "!")
 
 			local elapsed = 0
-			local holdTime = SlamInterval or 2
+			local holdTime = SlamInterval or 0.2
 			while elapsed < holdTime do
 				if not slamRunning then break end
 				task.wait(0.05)
@@ -809,7 +809,7 @@ ConfigFrame.Position = UDim2.new(0.4, 330, 0.3, 0)
 ConfigFrame.BackgroundColor3 = Color3.fromRGB(35, 42, 54)
 ConfigFrame.BorderSizePixel = 0
 ConfigFrame.Visible = false
-ConfigFrame.CanvasSize = UDim2.new(0, 0, 0, 560)
+ConfigFrame.CanvasSize = UDim2.new(0, 0, 0, 620)
 ConfigFrame.ScrollBarThickness = 6
 Instance.new("UICorner", ConfigFrame).CornerRadius = UDim.new(0, 8)
 
@@ -1082,9 +1082,37 @@ FireworkBox.FocusLost:Connect(function()
 	end
 end)
 
+local SlamIntervalLabel = Instance.new("TextLabel", ConfigFrame)
+SlamIntervalLabel.Size = UDim2.new(0, 190, 0, 20)
+SlamIntervalLabel.Position = UDim2.new(0, 15, 0, 405)
+SlamIntervalLabel.BackgroundTransparency = 1
+SlamIntervalLabel.Text = "Slam Interval (s):"
+SlamIntervalLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+SlamIntervalLabel.TextSize = 12
+SlamIntervalLabel.TextXAlignment = Enum.TextXAlignment.Left
+
+local SlamIntervalBox = Instance.new("TextBox", ConfigFrame)
+SlamIntervalBox.Size = UDim2.new(0, 190, 0, 28)
+SlamIntervalBox.Position = UDim2.new(0, 15, 0, 428)
+SlamIntervalBox.BackgroundColor3 = Color3.fromRGB(50, 62, 80)
+SlamIntervalBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+SlamIntervalBox.Text = tostring(SlamInterval)
+SlamIntervalBox.TextSize = 13
+Instance.new("UICorner", SlamIntervalBox).CornerRadius = UDim.new(0, 6)
+
+SlamIntervalBox.FocusLost:Connect(function()
+	local val = tonumber(SlamIntervalBox.Text)
+	if val and val >= 0 then
+		SlamInterval = val
+		SlamIntervalBox.Text = tostring(val)
+	else
+		SlamIntervalBox.Text = tostring(SlamInterval)
+	end
+end)
+
 local OffsetLabel = Instance.new("TextLabel", ConfigFrame)
 OffsetLabel.Size = UDim2.new(0, 190, 0, 20)
-OffsetLabel.Position = UDim2.new(0, 15, 0, 405)
+OffsetLabel.Position = UDim2.new(0, 15, 0, 465)
 OffsetLabel.BackgroundTransparency = 1
 OffsetLabel.Text = "Slam Offset Distance:"
 OffsetLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
@@ -1093,7 +1121,7 @@ OffsetLabel.TextXAlignment = Enum.TextXAlignment.Left
 
 local OffsetBox = Instance.new("TextBox", ConfigFrame)
 OffsetBox.Size = UDim2.new(0, 190, 0, 28)
-OffsetBox.Position = UDim2.new(0, 15, 0, 428)
+OffsetBox.Position = UDim2.new(0, 15, 0, 488)
 OffsetBox.BackgroundColor3 = Color3.fromRGB(50, 62, 80)
 OffsetBox.TextColor3 = Color3.fromRGB(255, 255, 255)
 OffsetBox.Text = tostring(SlamOffsetDistance)
@@ -1219,4 +1247,4 @@ createButton("Stop Weld (Turn Off)", 275, 290, 15, function()
 	StopWeld()
 end)
 
-notify("Universal Weld", "Script updated with Pick Dir Slam, Velocity 200 and Draggable Config!")
+notify("Universal Weld", "Script updated with Slam Interval (default 0.2s) in Config Menu!")
