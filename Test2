@@ -18,8 +18,8 @@ local SoaringSequences = 3     -- Soaring telemetry cycles (0 skips directly to 
 local VoidDropDelay = 4        -- Final Void Drop hold delay (seconds)
 local FireworkInterval = 2     -- Firework/Combo hold interval (seconds)
 local SlamInterval = 2         -- Slam hold interval (editable)
-local SlamVelocity = 80        -- Slam movement / push velocity towards target (editable)
-local SlamDirection = "Down"   -- Slam direction ("Down", "Forward", "Backward", "Up")
+local SlamOffsetDistance = 3   -- Distance/offset from victim for Slam (editable)
+local SelectedSlamTarget = nil -- Target Vector3 for directional Slam
 
 --// Safe Notification Function
 local function notify(title, text)
@@ -151,7 +151,7 @@ local function StopWeld()
 	workspace.FallenPartsDestroyHeight = OriginalFPDH
 	notify("Welder", "Actions stopped and player released!")
 end
---// PART 2: Main Functions (Soaring beast & Rocket with Velocity)
+--// PART 2: SoaringBeast & Rocket Functions
 
 local function SoaringBeast(targetInput, speaker: Player)
 	if not targetInput or targetInput == "" then return notify('Player Required', 'No target provided for Soaring beast!') end
@@ -312,8 +312,7 @@ local function Rocket(targetInput, speaker: Player, customVelocity, customTime)
 				end
 				Root.CFrame = TRoot.CFrame * CFrame.new(0, RocketBaseHeight, 0) * CFrame.Angles(math.rad(RocketAngle), 0, 0)
 				
-				-- Using controlled Velocity to launch upwards instead of random fling
-				local velPower = customVelocity and customVelocity > 0 and customVelocity or 250
+				local velPower = customVelocity and customVelocity > 0 and customVelocity or 200
 				Root.AssemblyLinearVelocity = Vector3.new(0, velPower, 0)
 				Root.AssemblyAngularVelocity = Vector3.zero
 				Root.RotVelocity = Vector3.zero
@@ -327,7 +326,7 @@ local function Rocket(targetInput, speaker: Player, customVelocity, customTime)
 			end)
 
 			local bv = Instance.new("BodyVelocity")
-			bv.Velocity = Vector3.new(0, customVelocity and customVelocity > 0 and customVelocity or 250, 0)
+			bv.Velocity = Vector3.new(0, customVelocity and customVelocity > 0 and customVelocity or 200, 0)
 			bv.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
 			bv.P = 1250
 			bv.Parent = Root
@@ -405,7 +404,7 @@ local function Firework(targetInput, speaker: Player, customVelocity)
 			end
 
 			local fireworkRunning = true
-			local useVelocity = false
+			local useFling = false
 
 			local connection
 			connection = RunService.Heartbeat:Connect(function()
@@ -415,13 +414,15 @@ local function Firework(targetInput, speaker: Player, customVelocity)
 				end
 				Root.CFrame = TRoot.CFrame * CFrame.new(0, RocketBaseHeight, 0) * CFrame.Angles(math.rad(RocketAngle), 0, 0)
 				
-				if useVelocity and customVelocity and customVelocity > 0 then
-					Root.AssemblyLinearVelocity = Vector3.new(0, customVelocity, 0)
+				if useFling then
+					Root.AssemblyLinearVelocity = Vector3.new(0, 250, 0) + Vector3.new(math.random(-300, 300), math.random(300, 500), math.random(-300, 300))
+					Root.RotVelocity = Vector3.new(40000, 40000, 40000)
 				else
-					Root.AssemblyLinearVelocity = Vector3.zero
+					local velPower = customVelocity and customVelocity > 0 and customVelocity or 200
+					Root.AssemblyLinearVelocity = Vector3.new(0, velPower, 0)
+					Root.AssemblyAngularVelocity = Vector3.zero
+					Root.RotVelocity = Vector3.zero
 				end
-				Root.AssemblyAngularVelocity = Vector3.zero
-				Root.RotVelocity = Vector3.zero
 				
 				if sethiddenproperty then
 					pcall(function()
@@ -463,8 +464,8 @@ local function Firework(targetInput, speaker: Player, customVelocity)
 
 			if fireworkRunning then
 				if bv then bv:Destroy() end
-				useVelocity = true
-				notify("Firework", "BOOM! Velocity Launch!")
+				useFling = true
+				notify("Firework", "BOOM! Firework explosion!")
 
 				task.wait(0.6)
 
@@ -556,7 +557,7 @@ local function Combo(targetInput, speaker: Player, customVelocity)
 
 			notify("Combo", "Lifting " .. TPlayer.Name .. " into the air...")
 
-			local useVelocity = false
+			local useFling = false
 			local connection
 			connection = RunService.Heartbeat:Connect(function()
 				if not comboRunning or not character.Parent or not TRoot.Parent then
@@ -565,13 +566,15 @@ local function Combo(targetInput, speaker: Player, customVelocity)
 				end
 				Root.CFrame = TRoot.CFrame * CFrame.new(0, RocketBaseHeight, 0) * CFrame.Angles(math.rad(RocketAngle), 0, 0)
 				
-				if useVelocity and customVelocity and customVelocity > 0 then
-					Root.AssemblyLinearVelocity = Vector3.new(0, customVelocity, 0)
+				if useFling then
+					Root.AssemblyLinearVelocity = Vector3.new(0, 250, 0) + Vector3.new(math.random(-300, 300), math.random(300, 500), math.random(-300, 300))
+					Root.RotVelocity = Vector3.new(40000, 40000, 40000)
 				else
-					Root.AssemblyLinearVelocity = Vector3.zero
+					local velPower = customVelocity and customVelocity > 0 and customVelocity or 200
+					Root.AssemblyLinearVelocity = Vector3.new(0, velPower, 0)
+					Root.AssemblyAngularVelocity = Vector3.zero
+					Root.RotVelocity = Vector3.zero
 				end
-				Root.AssemblyAngularVelocity = Vector3.zero
-				Root.RotVelocity = Vector3.zero
 				
 				if sethiddenproperty then
 					pcall(function()
@@ -605,8 +608,8 @@ local function Combo(targetInput, speaker: Player, customVelocity)
 
 			if comboRunning then
 				if bv then bv:Destroy() end
-				useVelocity = true
-				notify("Combo", "BOOM! Combo velocity explosion!")
+				useFling = true
+				notify("Combo", "BOOM! Combo explosion in the air!")
 
 				task.wait(0.6)
 
@@ -626,8 +629,8 @@ local function Combo(targetInput, speaker: Player, customVelocity)
 	end)
 end
 
---// Directional Slam Function (No spin, positions based on selected direction)
-local function Slam(targetInput, speaker: Player)
+--// Directional Slam Function (Uses Pick Dir target to position opposite and push)
+local function Slam(targetInput, speaker: Player, customVelocity)
 	if not targetInput or targetInput == "" then return notify('Player Required', 'No target provided for Slam!') end
 
 	resolveTarget(targetInput, speaker, function(v)
@@ -666,29 +669,24 @@ local function Slam(targetInput, speaker: Player)
 				end
 
 				pcall(function()
-					local dirSetting = string.lower(tostring(SlamDirection))
-					local targetOffset = CFrame.new(0, 3, 0) -- default Down (above)
-					local pushVelocity = Vector3.new(0, -SlamVelocity, 0)
+					local velPower = customVelocity and customVelocity > 0 and customVelocity or 200
+					local pushDir = Vector3.new(0, -1, 0)
 
-					if dirSetting == "forward" then
-						-- Position behind player, push forward (towards victim's look vector)
-						targetOffset = CFrame.new(0, 0, 3) * CFrame.Angles(0, math.pi, 0)
-						pushVelocity = TRoot.CFrame.LookVector * SlamVelocity
-					elseif dirSetting == "backward" then
-						-- Position in front of player, push backward
-						targetOffset = CFrame.new(0, 0, -3)
-						pushVelocity = -TRoot.CFrame.LookVector * SlamVelocity
-					elseif dirSetting == "up" then
-						-- Position below player, push up
-						targetOffset = CFrame.new(0, -3, 0)
-						pushVelocity = Vector3.new(0, SlamVelocity, 0)
-					else -- "down" or default
-						targetOffset = CFrame.new(0, 3, 0)
-						pushVelocity = Vector3.new(0, -SlamVelocity, 0)
+					if SelectedSlamTarget then
+						local victimPos = TRoot.Position
+						local vec = SelectedSlamTarget - victimPos
+						if vec.Magnitude > 0.1 then
+							pushDir = vec.Unit
+							local backPos = victimPos - (pushDir * SlamOffsetDistance)
+							Root.CFrame = CFrame.lookAt(backPos, victimPos)
+						else
+							Root.CFrame = TRoot.CFrame * CFrame.new(0, SlamOffsetDistance, 0)
+						end
+					else
+						Root.CFrame = TRoot.CFrame * CFrame.new(0, SlamOffsetDistance, 0)
 					end
 
-					Root.CFrame = TRoot.CFrame * targetOffset
-					Root.AssemblyLinearVelocity = pushVelocity
+					Root.AssemblyLinearVelocity = pushDir * velPower
 					Root.AssemblyAngularVelocity = Vector3.zero
 					Root.RotVelocity = Vector3.zero
 
@@ -713,7 +711,7 @@ local function Slam(targetInput, speaker: Player)
 				end
 			}
 
-			notify("Slam", "Executing directional slam (" .. SlamDirection .. ") on " .. TPlayer.Name .. "!")
+			notify("Slam", "Executing directional slam on " .. TPlayer.Name .. "!")
 
 			local elapsed = 0
 			local holdTime = SlamInterval or 2
@@ -739,6 +737,9 @@ local function Slam(targetInput, speaker: Player)
 	end)
 end
 --// PART 4: Graphical Interface, Draggable & Scrollable Config Menu & UI Buttons
+local UserInputService = game:GetService("UserInputService")
+local LocalPlayer = game:GetService("Players").LocalPlayer
+local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
 
 local ScreenGui = Instance.new("ScreenGui", PlayerGui)
 ScreenGui.Name = "UniversalWeldGUI"
@@ -761,7 +762,6 @@ TopBar.TextXAlignment = Enum.TextXAlignment.Left
 TopBar.FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json", Enum.FontWeight.Bold)
 Instance.new("UICorner", TopBar).CornerRadius = UDim.new(0, 8)
 
---// Make MainFrame Draggable
 local dragging, dragInput, dragStart, startPos
 TopBar.InputBegan:Connect(function(input)
 	if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
@@ -803,14 +803,13 @@ InfoToggleBtn.Text = "ℹ️ Info"
 InfoToggleBtn.TextSize = 11
 Instance.new("UICorner", InfoToggleBtn).CornerRadius = UDim.new(0, 5)
 
---// Scrollable & Draggable Configuration Menu
 local ConfigFrame = Instance.new("ScrollingFrame", ScreenGui)
 ConfigFrame.Size = UDim2.new(0, 220, 0, 420)
 ConfigFrame.Position = UDim2.new(0.4, 330, 0.3, 0)
 ConfigFrame.BackgroundColor3 = Color3.fromRGB(35, 42, 54)
 ConfigFrame.BorderSizePixel = 0
 ConfigFrame.Visible = false
-ConfigFrame.CanvasSize = UDim2.new(0, 0, 0, 640)
+ConfigFrame.CanvasSize = UDim2.new(0, 0, 0, 560)
 ConfigFrame.ScrollBarThickness = 6
 Instance.new("UICorner", ConfigFrame).CornerRadius = UDim.new(0, 8)
 
@@ -824,7 +823,6 @@ ConfigTitle.TextXAlignment = Enum.TextXAlignment.Left
 ConfigTitle.FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json", Enum.FontWeight.Bold)
 Instance.new("UICorner", ConfigTitle).CornerRadius = UDim.new(0, 8)
 
---// Make ConfigFrame Draggable by its Title Bar
 local configDragging, configDragInput, configDragStart, configStartPos
 ConfigTitle.InputBegan:Connect(function(input)
 	if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
@@ -892,9 +890,9 @@ InfoText.Text = [[TARGET COMMANDS:
 FEATURES:
 • Soaring beast: Teleports around target then flings to void.
 • Rocket: Launches user and target up with Velocity.
-• Firework: Lifts target and explodes with Velocity.
-• Combo: Soars, lifts, and executes velocity explosion.
-• Slam: Directional push (Down, Forward, Backward, Up).
+• Firework: Lifts target and explodes with fling.
+• Combo: Soars, lifts, and executes fling explosion.
+• Slam: Directional push using 🎯 Pick Dir tool.
 • Stop Weld: Releases active welds.]]
 
 local AngleLabel = Instance.new("TextLabel", ConfigFrame)
@@ -1084,86 +1082,31 @@ FireworkBox.FocusLost:Connect(function()
 	end
 end)
 
-local SlamIntervalLabel = Instance.new("TextLabel", ConfigFrame)
-SlamIntervalLabel.Size = UDim2.new(0, 190, 0, 20)
-SlamIntervalLabel.Position = UDim2.new(0, 15, 0, 405)
-SlamIntervalLabel.BackgroundTransparency = 1
-SlamIntervalLabel.Text = "Slam Interval (s):"
-SlamIntervalLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
-SlamIntervalLabel.TextSize = 12
-SlamIntervalLabel.TextXAlignment = Enum.TextXAlignment.Left
+local OffsetLabel = Instance.new("TextLabel", ConfigFrame)
+OffsetLabel.Size = UDim2.new(0, 190, 0, 20)
+OffsetLabel.Position = UDim2.new(0, 15, 0, 405)
+OffsetLabel.BackgroundTransparency = 1
+OffsetLabel.Text = "Slam Offset Distance:"
+OffsetLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+OffsetLabel.TextSize = 12
+OffsetLabel.TextXAlignment = Enum.TextXAlignment.Left
 
-local SlamIntervalBox = Instance.new("TextBox", ConfigFrame)
-SlamIntervalBox.Size = UDim2.new(0, 190, 0, 28)
-SlamIntervalBox.Position = UDim2.new(0, 15, 0, 428)
-SlamIntervalBox.BackgroundColor3 = Color3.fromRGB(50, 62, 80)
-SlamIntervalBox.TextColor3 = Color3.fromRGB(255, 255, 255)
-SlamIntervalBox.Text = tostring(SlamInterval)
-SlamIntervalBox.TextSize = 13
-Instance.new("UICorner", SlamIntervalBox).CornerRadius = UDim.new(0, 6)
+local OffsetBox = Instance.new("TextBox", ConfigFrame)
+OffsetBox.Size = UDim2.new(0, 190, 0, 28)
+OffsetBox.Position = UDim2.new(0, 15, 0, 428)
+OffsetBox.BackgroundColor3 = Color3.fromRGB(50, 62, 80)
+OffsetBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+OffsetBox.Text = tostring(SlamOffsetDistance)
+OffsetBox.TextSize = 13
+Instance.new("UICorner", OffsetBox).CornerRadius = UDim.new(0, 6)
 
-SlamIntervalBox.FocusLost:Connect(function()
-	local val = tonumber(SlamIntervalBox.Text)
-	if val and val >= 0 then
-		SlamInterval = val
-		SlamIntervalBox.Text = tostring(val)
-	else
-		SlamIntervalBox.Text = tostring(SlamInterval)
-	end
-end)
-
-local VelocityLabel = Instance.new("TextLabel", ConfigFrame)
-VelocityLabel.Size = UDim2.new(0, 190, 0, 20)
-VelocityLabel.Position = UDim2.new(0, 15, 0, 465)
-VelocityLabel.BackgroundTransparency = 1
-VelocityLabel.Text = "Slam Velocity Power:"
-VelocityLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
-VelocityLabel.TextSize = 12
-VelocityLabel.TextXAlignment = Enum.TextXAlignment.Left
-
-local VelocityBox = Instance.new("TextBox", ConfigFrame)
-VelocityBox.Size = UDim2.new(0, 190, 0, 28)
-VelocityBox.Position = UDim2.new(0, 15, 0, 488)
-VelocityBox.BackgroundColor3 = Color3.fromRGB(50, 62, 80)
-VelocityBox.TextColor3 = Color3.fromRGB(255, 255, 255)
-VelocityBox.Text = tostring(SlamVelocity)
-VelocityBox.TextSize = 13
-Instance.new("UICorner", VelocityBox).CornerRadius = UDim.new(0, 6)
-
-VelocityBox.FocusLost:Connect(function()
-	local val = tonumber(VelocityBox.Text)
+OffsetBox.FocusLost:Connect(function()
+	local val = tonumber(OffsetBox.Text)
 	if val then
-		SlamVelocity = val
-		VelocityBox.Text = tostring(val)
+		SlamOffsetDistance = val
+		OffsetBox.Text = tostring(val)
 	else
-		VelocityBox.Text = tostring(SlamVelocity)
-	end
-end)
-
-local DirLabel = Instance.new("TextLabel", ConfigFrame)
-DirLabel.Size = UDim2.new(0, 190, 0, 20)
-DirLabel.Position = UDim2.new(0, 15, 0, 525)
-DirLabel.BackgroundTransparency = 1
-DirLabel.Text = "Slam Direction (Down/Forward/Back/Up):"
-DirLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
-DirLabel.TextSize = 11
-DirLabel.TextXAlignment = Enum.TextXAlignment.Left
-
-local DirBox = Instance.new("TextBox", ConfigFrame)
-DirBox.Size = UDim2.new(0, 190, 0, 28)
-DirBox.Position = UDim2.new(0, 15, 0, 548)
-DirBox.BackgroundColor3 = Color3.fromRGB(50, 62, 80)
-DirBox.TextColor3 = Color3.fromRGB(255, 255, 255)
-DirBox.Text = tostring(SlamDirection)
-DirBox.TextSize = 13
-Instance.new("UICorner", DirBox).CornerRadius = UDim.new(0, 6)
-
-DirBox.FocusLost:Connect(function()
-	local text = tostring(DirBox.Text)
-	if text ~= "" then
-		SlamDirection = text
-	else
-		DirBox.Text = SlamDirection
+		OffsetBox.Text = tostring(SlamOffsetDistance)
 	end
 end)
 
@@ -1177,15 +1120,15 @@ TargetBox.Text = ""
 TargetBox.TextSize = 12
 Instance.new("UICorner", TargetBox).CornerRadius = UDim.new(0, 6)
 
-local FlingPowerBox = Instance.new("TextBox", MainFrame)
-FlingPowerBox.Size = UDim2.new(0, 140, 0, 26)
-FlingPowerBox.Position = UDim2.new(0, 15, 0, 77)
-FlingPowerBox.BackgroundColor3 = Color3.fromRGB(50, 62, 80)
-FlingPowerBox.TextColor3 = Color3.fromRGB(255, 255, 255)
-FlingPowerBox.PlaceholderText = "Velocity Power (ex: 250)"
-FlingPowerBox.Text = "250"
-FlingPowerBox.TextSize = 12
-Instance.new("UICorner", FlingPowerBox).CornerRadius = UDim.new(0, 6)
+local VelocityBox = Instance.new("TextBox", MainFrame)
+VelocityBox.Size = UDim2.new(0, 140, 0, 26)
+VelocityBox.Position = UDim2.new(0, 15, 0, 77)
+VelocityBox.BackgroundColor3 = Color3.fromRGB(50, 62, 80)
+VelocityBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+VelocityBox.PlaceholderText = "Velocity (ex: 200)"
+VelocityBox.Text = "200"
+VelocityBox.TextSize = 12
+Instance.new("UICorner", VelocityBox).CornerRadius = UDim.new(0, 6)
 
 local ReturnTimeBox = Instance.new("TextBox", MainFrame)
 ReturnTimeBox.Size = UDim2.new(0, 140, 0, 26)
@@ -1197,10 +1140,10 @@ ReturnTimeBox.Text = "0.5"
 ReturnTimeBox.TextSize = 12
 Instance.new("UICorner", ReturnTimeBox).CornerRadius = UDim.new(0, 6)
 
-local function createButton(text, posY, callback)
+local function createButton(text, posY, width, posX, callback)
 	local btn = Instance.new("TextButton", MainFrame)
-	btn.Size = UDim2.new(0, 290, 0, 28)
-	btn.Position = UDim2.new(0, 15, 0, posY)
+	btn.Size = UDim2.new(0, width or 290, 0, 28)
+	btn.Position = UDim2.new(0, posX or 15, 0, posY)
 	btn.BackgroundColor3 = Color3.fromRGB(66, 83, 103)
 	btn.TextColor3 = Color3.fromRGB(255, 255, 255)
 	btn.Text = text
@@ -1210,34 +1153,70 @@ local function createButton(text, posY, callback)
 		local targetName = TargetBox.Text
 		callback(targetName)
 	end)
+	return btn
 end
 
-createButton("Soaring beast", 110, function(target)
+createButton("Soaring beast", 110, 290, 15, function(target)
 	SoaringBeast(target, LocalPlayer)
 end)
 
-createButton("Rocket", 143, function(target)
-	local velVal = tonumber(FlingPowerBox.Text) or 250
+createButton("Rocket", 143, 290, 15, function(target)
+	local velVal = tonumber(VelocityBox.Text) or 200
 	local timeVal = tonumber(ReturnTimeBox.Text) or 0.5
 	Rocket(target, LocalPlayer, velVal, timeVal)
 end)
 
-createButton("Firework (Lift & Velocity Launch)", 176, function(target)
-	local velVal = tonumber(FlingPowerBox.Text) or 250
+createButton("Firework (Lift & Velocity)", 176, 290, 15, function(target)
+	local velVal = tonumber(VelocityBox.Text) or 200
 	Firework(target, LocalPlayer, velVal)
 end)
 
-createButton("Combo (Soaring + Lift + Velocity)", 209, function(target)
-	local velVal = tonumber(FlingPowerBox.Text) or 250
+createButton("Combo (Soaring + Lift + Velocity)", 209, 290, 15, function(target)
+	local velVal = tonumber(VelocityBox.Text) or 200
 	Combo(target, LocalPlayer, velVal)
 end)
 
-createButton("Slam (Directional Velocity Push)", 242, function(target)
-	Slam(target, LocalPlayer)
+createButton("Slam (Directional)", 242, 195, 15, function(target)
+	local velVal = tonumber(VelocityBox.Text) or 200
+	Slam(target, LocalPlayer, velVal)
 end)
 
-createButton("Stop Weld (Turn Off)", 275, function()
+local PickDirBtn = Instance.new("TextButton", MainFrame)
+PickDirBtn.Size = UDim2.new(0, 90, 0, 28)
+PickDirBtn.Position = UDim2.new(0, 215, 0, 242)
+PickDirBtn.BackgroundColor3 = Color3.fromRGB(80, 100, 130)
+PickDirBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+PickDirBtn.Text = "🎯 Pick Dir"
+PickDirBtn.TextSize = 12
+Instance.new("UICorner", PickDirBtn).CornerRadius = UDim.new(0, 6)
+
+PickDirBtn.MouseButton1Click:Connect(function()
+	SelectedSlamTarget = nil
+	notify("Slam Direction", "Click anywhere in the world to set launch direction!")
+	local mouseConn
+	mouseConn = UserInputService.InputBegan:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+			mouseConn:Disconnect()
+			local camera = workspace.CurrentCamera
+			local mouse = LocalPlayer:GetMouse()
+			local unitRay = camera:ScreenPointToRay(mouse.X, mouse.Y)
+			local raycastParams = RaycastParams.new()
+			raycastParams.FilterType = Enum.RaycastFilterType.Exclude
+			raycastParams.FilterDescendantsInstances = {LocalPlayer.Character}
+			local result = workspace:Raycast(unitRay.Origin, unitRay.Direction * 1000, raycastParams)
+			if result then
+				SelectedSlamTarget = result.Position
+				notify("Slam Direction", "Direction locked successfully!")
+			else
+				SelectedSlamTarget = camera.Focus.Position
+				notify("Slam Direction", "Direction set to camera focus!")
+			end
+		end
+	end)
+end)
+
+createButton("Stop Weld (Turn Off)", 275, 290, 15, function()
 	StopWeld()
 end)
 
-notify("Universal Weld", "Script successfully updated with Draggable Config & Directional Slam!")
+notify("Universal Weld", "Script updated with Pick Dir Slam, Velocity 200 and Draggable Config!")
