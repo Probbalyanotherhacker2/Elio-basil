@@ -11,7 +11,7 @@ local OriginalFPDH = workspace.FallenPartsDestroyHeight
 local SoaringAnimTrack = nil
 
 --// Editable Configuration Variables
-local RocketAngle = 0          -- Rocket angle (0 to 360)
+local RocketAngle = 0          -- Rocket & Magic Carpet angle (0 to 360)
 local RocketBaseHeight = -3.5  -- Rocket base height
 local SoaringSpeed = 0.08      -- Soaring teleport delay (seconds)
 local SoaringSequences = 3     -- Soaring telemetry cycles (0 skips directly to void)
@@ -784,8 +784,8 @@ local function MagicCarpet(targetInput, speaker: Player, customVelocity)
 				end
 
 				pcall(function()
-					-- 90 degree angle underneath victim using dynamic MagicCarpetOffset (default 4.5)
-					local targetCFrame = TRoot.CFrame * CFrame.new(0, -MagicCarpetOffset, 0) * CFrame.Angles(math.rad(90), 0, 0)
+					-- Compartilha o ângulo do Rocket nas configurações e aplica o offset dinâmico
+					local targetCFrame = TRoot.CFrame * CFrame.new(0, -MagicCarpetOffset, 0) * CFrame.Angles(math.rad(RocketAngle), 0, 0)
 					Root.CFrame = targetCFrame
 
 					local velPower = (customVelocity and customVelocity ~= 0) and customVelocity or 200
@@ -1033,10 +1033,9 @@ InfoText.Text = [[TARGET COMMANDS:
 FEATURES:
 • Soaring beast / Rocket / Firework / Combo.
 • Slam: Directional push using 🎯 Pick Dir.
-• Magic Carpet: Carries target underneath at 90° with Dpad & E/Q offset control (Default offset: 4.5).
+• Magic Carpet: Carries target underneath with Dpad & E/Q offset control (Default offset: 4.5).
 • Stop Weld: Releases active welds.]]
 
--- Configuration Items
 local function createConfigLabel(text, posY)
 	local lbl = Instance.new("TextLabel", ConfigFrame)
 	lbl.Size = UDim2.new(0, 190, 0, 20)
@@ -1065,7 +1064,7 @@ local function createConfigBox(defaultVal, posY, callback)
 	return box
 end
 
-createConfigLabel("Rocket Angle (0 - 360°):", 45)
+createConfigLabel("Rocket / Carpet Angle (0 - 360°):", 45)
 local AngleBox = createConfigBox(RocketAngle, 68, function(v) RocketAngle = math.clamp(v, 0, 360) end)
 
 createConfigLabel("Soaring Speed (Delay s):", 110)
@@ -1086,7 +1085,6 @@ local SlamIntervalBox = createConfigBox(SlamInterval, 393, function(v) if v >= 0
 createConfigLabel("Slam Offset Distance:", 435)
 local OffsetBox = createConfigBox(SlamOffsetDistance, 458, function(v) SlamOffsetDistance = v end end)
 
--- Main Frame Inputs & Buttons
 local TargetBox = Instance.new("TextBox", MainFrame)
 TargetBox.Size = UDim2.new(0, 290, 0, 30)
 TargetBox.Position = UDim2.new(0, 15, 0, 42)
@@ -1192,7 +1190,7 @@ PickDirBtn.MouseButton1Click:Connect(function()
 	end)
 end)
 
-createButton("Magic Carpet (90° + Dpad)", 260, 290, 15, function(target)
+createButton("Magic Carpet", 260, 290, 15, function(target)
 	local textVal = tonumber(VelocityBox.Text)
 	local velVal = (textVal and textVal ~= 0) and textVal or 200
 	MagicCarpet(target, LocalPlayer, velVal)
@@ -1202,4 +1200,4 @@ createButton("Stop Weld (Turn Off)", 290, 290, 15, function()
 	StopWeld()
 end)
 
-notify("Universal Weld", "Script updated with Magic Carpet & Bug Fixes!")
+notify("Universal Weld", "Magic Carpet function added successfully!")
