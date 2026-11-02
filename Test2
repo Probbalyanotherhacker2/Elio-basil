@@ -1073,10 +1073,9 @@ local function BoxFunc(targetInput, speaker: Player)
 				end
 			end
 
-			-- Centro da caixa na posição inicial da vítima
 			local boxCenter = TRoot.Position
 			
-			-- Criação da parte visual da caixa (visível apenas para você/semitransparente)
+			-- Criação da caixa visual (esfera semitransparente)
 			local boxPart = Instance.new("Part")
 			boxPart.Name = "VisualBox"
 			boxPart.Shape = Enum.PartType.Ball
@@ -1122,14 +1121,22 @@ local function BoxFunc(targetInput, speaker: Player)
 					local victimPos = TRoot.Position
 					local offsetFromCenter = victimPos - boxCenter
 					local distFromCenter = offsetFromCenter.Magnitude
-					local effectiveLimit = math.max((BoxSize / 2) - BoxLeadStuds, 1)
+					local boxRadius = BoxSize / 2
+					local triggerLimit = math.max(boxRadius - BoxLeadStuds, 1)
 
-					-- Se a vítima tentar se afastar do centro em direção às bordas da caixa
-					if distFromCenter >= effectiveLimit then
+					if distFromCenter >= triggerLimit then
 						local escapeDir = offsetFromCenter.Unit
-						-- Posiciona o player exatamente ENTRE a caixa (centro) e a vítima, bloqueando a fuga
-						local blockingPos = boxCenter + (escapeDir * math.clamp(distFromCenter - 1.5, 0, BoxSize / 2))
-						
+						local blockingPos
+
+						-- Se a vítima conseguiu furar a barreira e sair da caixa (distância maior que o raio)
+						if distFromCenter > boxRadius then
+							-- Posiciona o player na direção OPSTA do escape (puxando-a de volta para dentro)
+							blockingPos = boxCenter + (escapeDir * (boxRadius - 1))
+						else
+							-- Se estiver na borda (zona de antecedência), bloqueia exatamente no caminho dela
+							blockingPos = boxCenter + (escapeDir * distFromCenter)
+						end
+
 						Root.CFrame = CFrame.new(blockingPos + Vector3.new(0, 2, 0), victimPos)
 						Root.AssemblyLinearVelocity = TRoot.AssemblyLinearVelocity
 						Root.AssemblyAngularVelocity = Vector3.zero
@@ -1140,7 +1147,7 @@ local function BoxFunc(targetInput, speaker: Player)
 							sethiddenproperty(Root, "PhysicsRepRootRef", InstanceHandle.new(TRoot))
 						end
 					else
-						-- Se estiver segura no interior, o player aguarda próximo ao centro superior
+						-- Se estiver segura dentro da caixa, aguarda próximo ao centro superior
 						Root.CFrame = CFrame.new(boxCenter + Vector3.new(0, 4, 0))
 						Root.AssemblyLinearVelocity = Vector3.zero
 						Root.AssemblyAngularVelocity = Vector3.zero
@@ -1338,7 +1345,7 @@ FEATURES:
 • Combo: Soars, lifts, and executes fling explosion.
 • Slam: Directional push using 🎯 Pick Dir tool.
 • Torture: Descends slowly from high above and stuns.
-• Box: Traps victim in a visible boundary box, blocking escape.
+• Box: Traps victim in a visible boundary box with anti-escape push.
 • Stop Weld: Releases active welds.]]
 --// PART 5: Configuration Elements, Action Buttons & Initialization
 local AngleLabel = Instance.new("TextLabel", ConfigFrame)
@@ -1889,7 +1896,7 @@ PickDirBtn.MouseButton1Click:Connect(function()
 			if result then
 				SelectedSlamTarget = result.Position
 				notify("Slam Direction", "Direction locked successfully!")
-               else
+			   else
 				SelectedSlamTarget = camera.Focus.Position
 				notify("Slam Direction", "Direction set to camera focus!")
 			end
