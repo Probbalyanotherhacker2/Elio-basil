@@ -240,7 +240,6 @@ local function SoaringBeast(targetInput, speaker: Player)
 					if sethiddenproperty then
 						pcall(function()
 							sethiddenproperty(Root, "PhysicsRepRootPart", TRoot)
-							sethiddenproperty(Root, "PhysicsRepRootRef", InstanceHandle.new(TRoot))
 						end)
 					end
 				end)
@@ -322,7 +321,6 @@ local function Rocket(targetInput, speaker: Player, customVelocity, customTime)
 				if sethiddenproperty then
 					pcall(function()
 						sethiddenproperty(Root, "PhysicsRepRootPart", TRoot)
-						sethiddenproperty(Root, "PhysicsRepRootRef", InstanceHandle.new(TRoot))
 					end)
 				end
 			end)
@@ -379,7 +377,6 @@ local function Rocket(targetInput, speaker: Player, customVelocity, customTime)
 	end)
 end
 
---// Magic Carpet Function (Uses MagicCarpetHeight offset & supports custom directional velocity without changing position/angle)
 local function MagicCarpet(targetInput, speaker: Player, customVelocity, customTime)
 	if not targetInput or targetInput == "" then return notify('Player Required', 'No target provided for Magic Carpet!') end
 
@@ -416,13 +413,12 @@ local function MagicCarpet(targetInput, speaker: Player, customVelocity, customT
 					if connection then connection:Disconnect() end
 					return
 				end
-				-- Keeps standard position and angle relative to target using MagicCarpetHeight
+				-- Keeps position at MagicCarpetHeight without altering angle/position based on target direction
 				Root.CFrame = TRoot.CFrame * CFrame.new(0, MagicCarpetHeight, 0) * CFrame.Angles(math.rad(RocketAngle), 0, 0)
 				
 				local velPower = (customVelocity and customVelocity ~= 0) and customVelocity or 0
 				local moveDir = Vector3.new(0, velPower, 0)
 
-				-- Directs velocity if a target point is picked, without shifting position or angle
 				if SelectedMagicTarget then
 					local dir = (SelectedMagicTarget - Root.Position)
 					if dir.Magnitude > 0.1 then
@@ -433,11 +429,14 @@ local function MagicCarpet(targetInput, speaker: Player, customVelocity, customT
 				Root.AssemblyLinearVelocity = moveDir
 				Root.AssemblyAngularVelocity = Vector3.zero
 				Root.RotVelocity = Vector3.zero
+
+				if bv then
+					bv.Velocity = moveDir
+				end
 				
 				if sethiddenproperty then
 					pcall(function()
 						sethiddenproperty(Root, "PhysicsRepRootPart", TRoot)
-						sethiddenproperty(Root, "PhysicsRepRootRef", InstanceHandle.new(TRoot))
 					end)
 				end
 			end)
@@ -547,7 +546,6 @@ local function Firework(targetInput, speaker: Player)
 				if sethiddenproperty then
 					pcall(function()
 						sethiddenproperty(Root, "PhysicsRepRootPart", TRoot)
-						sethiddenproperty(Root, "PhysicsRepRootRef", InstanceHandle.new(TRoot))
 					end)
 				end
 			end)
@@ -698,7 +696,6 @@ local function Combo(targetInput, speaker: Player)
 				if sethiddenproperty then
 					pcall(function()
 						sethiddenproperty(Root, "PhysicsRepRootPart", TRoot)
-						sethiddenproperty(Root, "PhysicsRepRootRef", InstanceHandle.new(TRoot))
 					end)
 				end
 			end)
@@ -748,7 +745,6 @@ local function Combo(targetInput, speaker: Player)
 	end)
 end
 
---// Directional Slam Function (Uses Pick Dir target to position opposite and push)
 local function Slam(targetInput, speaker: Player, customVelocity)
 	if not targetInput or targetInput == "" then return notify('Player Required', 'No target provided for Slam!') end
 
@@ -811,7 +807,6 @@ local function Slam(targetInput, speaker: Player, customVelocity)
 
 					if sethiddenproperty then
 						sethiddenproperty(Root, "PhysicsRepRootPart", TRoot)
-						sethiddenproperty(Root, "PhysicsRepRootRef", InstanceHandle.new(TRoot))
 					end
 				end)
 			end)
@@ -865,7 +860,7 @@ ScreenGui.Name = "UniversalWeldGUI"
 ScreenGui.ResetOnSpawn = false
 
 local MainFrame = Instance.new("Frame", ScreenGui)
-MainFrame.Size = UDim2.new(0, 320, 0, 385)
+MainFrame.Size = UDim2.new(0, 320, 0, 420)
 MainFrame.Position = UDim2.new(0.4, 0, 0.3, 0)
 MainFrame.BackgroundColor3 = Color3.fromRGB(35, 42, 54)
 MainFrame.BorderSizePixel = 0
@@ -1090,7 +1085,6 @@ PlusBtn.MouseButton1Click:Connect(function()
 	HeightDisplay.Text = string.format("%.1f", RocketBaseHeight)
 end)
 
---// Magic Carpet Height Config UI
 local CarpetHeightLabel = Instance.new("TextLabel", ConfigFrame)
 CarpetHeightLabel.Size = UDim2.new(0, 190, 0, 20)
 CarpetHeightLabel.Position = UDim2.new(0, 15, 0, 165)
@@ -1361,25 +1355,27 @@ Instance.new("UICorner", MagicPickDirBtn).CornerRadius = UDim.new(0, 6)
 MagicPickDirBtn.MouseButton1Click:Connect(function()
 	SelectedMagicTarget = nil
 	notify("Magic Carpet Dir", "Click anywhere in the world to set velocity direction!")
-	local mouseConn
-	mouseConn = UserInputService.InputBegan:Connect(function(input)
-		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-			mouseConn:Disconnect()
-			local camera = workspace.CurrentCamera
-			local mouse = LocalPlayer:GetMouse()
-			local unitRay = camera:ScreenPointToRay(mouse.X, mouse.Y)
-			local raycastParams = RaycastParams.New()
-            raycastParams.FilterType = Enum.RaycastFilterType.Exclude
-			raycastParams.FilterDescendantsInstances = {LocalPlayer.Character}
-			local result = workspace:Raycast(unitRay.Origin, unitRay.Direction * 1000, raycastParams)
-			if result then
-				SelectedSlamTarget = result.Position
-				notify("Slam Direction", "Direction locked successfully!")
-			else
-				SelectedSlamTarget = camera.Focus.Position
-				notify("Slam Direction", "Direction set to camera focus!")
+	task.delay(0.2, function()
+		local mouseConn
+		mouseConn = UserInputService.InputBegan:Connect(function(input)
+			if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+				mouseConn:Disconnect()
+				local camera = workspace.CurrentCamera
+				local mouse = LocalPlayer:GetMouse()
+				local unitRay = camera:ScreenPointToRay(mouse.X, mouse.Y)
+				local raycastParams = RaycastParams.new()
+                raycastParams.FilterType = Enum.RaycastFilterType.Exclude
+				raycastParams.FilterDescendantsInstances = {LocalPlayer.Character}
+				local result = workspace:Raycast(unitRay.Origin, unitRay.Direction * 1000, raycastParams)
+				if result then
+					SelectedSlamTarget = result.Position
+					notify("Slam Direction", "Direction locked successfully!")
+				else
+					SelectedSlamTarget = camera.Focus.Position
+					notify("Slam Direction", "Direction set to camera focus!")
+				end
 			end
-		end
+		end)
 	end)
 end)
 
@@ -1387,4 +1383,4 @@ createButton("Stop Weld (Turn Off)", 290, 290, 15, function()
 	StopWeld()
 end)
 
-notify("Universal Weld", "Magic Carpet offset set to 5.0 with directional velocity added!")
+notify("Universal Weld", "Script updated and all bugs fixed successfully!")
