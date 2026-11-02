@@ -943,7 +943,7 @@ UserInputService.InputChanged:Connect(function(input)
 	end
 end)
 
--- Botão para compactar / expandir o menu (esconde todos os outros elementos corretamente)
+-- Botão para esconder/mostrar completamente a interface (mantendo apenas o botão + visível)
 local MinimizeBtn = Instance.new("TextButton", TopBar)
 MinimizeBtn.Size = UDim2.new(0, 25, 0, 25)
 MinimizeBtn.Position = UDim2.new(1, -30, 0, 5)
@@ -953,24 +953,26 @@ MinimizeBtn.Text = "-"
 MinimizeBtn.TextSize = 14
 Instance.new("UICorner", MinimizeBtn).CornerRadius = UDim.new(0, 5)
 
-local isMinimized = false
+local isHidden = false
 MinimizeBtn.MouseButton1Click:Connect(function()
-	isMinimized = not isMinimized
-	if isMinimized then
+	isHidden = not isHidden
+	if isHidden then
 		MinimizeBtn.Text = "+"
-		MainFrame.Size = UDim2.new(0, 320, 0, 35)
+		MainFrame.BackgroundTransparency = 1
+		TopBar.Visible = false
 		for _, child in ipairs(MainFrame:GetChildren()) do
 			if child ~= TopBar and child ~= MinimizeBtn then
 				child.Visible = false
 			end
 		end
+		ConfigFrame.Visible = false
+		InfoFrame.Visible = false
 	else
 		MinimizeBtn.Text = "-"
-		MainFrame.Size = UDim2.new(0, 320, 0, 355)
+		MainFrame.BackgroundTransparency = 0
+		TopBar.Visible = true
 		for _, child in ipairs(MainFrame:GetChildren()) do
-			if child ~= TopBar then
-				child.Visible = true
-			end
+			child.Visible = true
 		end
 	end
 end)
@@ -1040,6 +1042,7 @@ ConfigToggleBtn.MouseButton1Click:Connect(function()
 	ConfigFrame.Visible = not ConfigFrame.Visible
 end)
 
+-- Painel de Informação interativo e móvel (Draggable)
 local InfoFrame = Instance.new("Frame", ScreenGui)
 InfoFrame.Size = UDim2.new(0, 260, 0, 345)
 InfoFrame.Position = UDim2.new(0.4, -270, 0.3, 0)
@@ -1057,6 +1060,29 @@ InfoTitle.TextSize = 14
 InfoTitle.TextXAlignment = Enum.TextXAlignment.Left
 InfoTitle.FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json", Enum.FontWeight.Bold)
 Instance.new("UICorner", InfoTitle).CornerRadius = UDim.new(0, 8)
+
+local infoDragging, infoDragInput, infoDragStart, infoStartPos
+InfoTitle.InputBegan:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+		infoDragging = true
+		infoDragStart = input.Position
+		infoStartPos = InfoFrame.Position
+		input.Changed:Connect(function()
+			if input.UserInputState == Enum.UserInputState.End then infoDragging = false end
+		end)
+	end
+end)
+InfoTitle.InputChanged:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+		infoDragInput = input
+	end
+end)
+UserInputService.InputChanged:Connect(function(input)
+	if input == infoDragInput and infoDragging then
+		local delta = input.Position - infoDragStart
+		InfoFrame.Position = UDim2.new(infoStartPos.X.Scale, infoStartPos.X.Offset + delta.X, infoStartPos.Y.Scale, infoStartPos.Y.Offset + delta.Y)
+	end
+end)
 
 InfoToggleBtn.MouseButton1Click:Connect(function()
 	InfoFrame.Visible = not InfoFrame.Visible
