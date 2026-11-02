@@ -1,4 +1,3 @@
-
 --// PART 1: Services, Global Variables & Target Resolution
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -498,7 +497,6 @@ local function SlamDrop(targetInput, speaker: Player, customVelocity)
 				end
 
 				pcall(function()
-					-- Gruda em cima da vítima e empurra para baixo com a velocity configurada
 					Root.CFrame = TRoot.CFrame * CFrame.new(0, 3, 0)
 					local velPower = (customVelocity and customVelocity ~= 0) and customVelocity or 200
 					Root.AssemblyLinearVelocity = Vector3.new(0, -velPower, 0)
@@ -526,7 +524,28 @@ local function SlamDrop(targetInput, speaker: Player, customVelocity)
 				end
 			}
 
-			notify("Slam-drop", "Slam-dropping " .. TPlayer.Name .. " to the ground!")
+			notify("Slam-drop", "Executing slam-drop on " .. TPlayer.Name .. "...")
+
+			local elapsed = 0
+			local holdTime = SlamInterval or 0.2
+			while elapsed < holdTime do
+				if not slamDropRunning then break end
+				task.wait(0.05)
+				elapsed = elapsed + 0.05
+			end
+
+			if slamDropRunning then
+				if connection then connection:Disconnect() end
+
+				Root.CFrame = initialCFrame
+				Root.AssemblyLinearVelocity = Vector3.zero
+				Root.AssemblyAngularVelocity = Vector3.zero
+				Root.RotVelocity = Vector3.zero
+				workspace.FallenPartsDestroyHeight = OriginalFPDH
+				CurrentWeld = nil
+
+				notify("Slam-drop", "Slam-drop completed successfully!")
+			end
 		end)
 	end)
 end
@@ -924,9 +943,41 @@ UserInputService.InputChanged:Connect(function(input)
 	end
 end)
 
+-- Botão para compactar / expandir o menu
+local MinimizeBtn = Instance.new("TextButton", TopBar)
+MinimizeBtn.Size = UDim2.new(0, 25, 0, 25)
+MinimizeBtn.Position = UDim2.new(1, -30, 0, 5)
+MinimizeBtn.BackgroundColor3 = Color3.fromRGB(66, 83, 103)
+MinimizeBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+MinimizeBtn.Text = "-"
+MinimizeBtn.TextSize = 14
+Instance.new("UICorner", MinimizeBtn).CornerRadius = UDim.new(0, 5)
+
+local isMinimized = false
+MinimizeBtn.MouseButton1Click:Connect(function()
+	isMinimized = not isMinimized
+	if isMinimized then
+		MinimizeBtn.Text = "+"
+		MainFrame.Size = UDim2.new(0, 320, 0, 35)
+		for _, child in ipairs(MainFrame:GetChildren()) do
+			if child ~= TopBar then
+				child.Visible = false
+			end
+		end
+	else
+		MinimizeBtn.Text = "-"
+		MainFrame.Size = UDim2.new(0, 320, 0, 355)
+		for _, child in ipairs(MainFrame:GetChildren()) do
+			if child ~= TopBar then
+				child.Visible = true
+			end
+		end
+	end
+end)
+
 local ConfigToggleBtn = Instance.new("TextButton", TopBar)
 ConfigToggleBtn.Size = UDim2.new(0, 60, 0, 25)
-ConfigToggleBtn.Position = UDim2.new(1, -125, 0, 5)
+ConfigToggleBtn.Position = UDim2.new(1, -155, 0, 5)
 ConfigToggleBtn.BackgroundColor3 = Color3.fromRGB(66, 83, 103)
 ConfigToggleBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
 ConfigToggleBtn.Text = "⚙️ Config"
@@ -935,7 +986,7 @@ Instance.new("UICorner", ConfigToggleBtn).CornerRadius = UDim.new(0, 5)
 
 local InfoToggleBtn = Instance.new("TextButton", TopBar)
 InfoToggleBtn.Size = UDim2.new(0, 50, 0, 25)
-InfoToggleBtn.Position = UDim2.new(1, -60, 0, 5)
+InfoToggleBtn.Position = UDim2.new(1, -90, 0, 5)
 InfoToggleBtn.BackgroundColor3 = Color3.fromRGB(66, 83, 103)
 InfoToggleBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
 InfoToggleBtn.Text = "ℹ️ Info"
@@ -1396,7 +1447,6 @@ SlamDropBtn.BackgroundColor3 = Color3.fromRGB(80, 100, 130)
 SlamDropBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
 SlamDropBtn.Text = "Slam-drop"
 SlamDropBtn.TextSize = 11
-SlamDropBtn.TextSize = 11
 Instance.new("UICorner", SlamDropBtn).CornerRadius = UDim.new(0, 6)
 
 local currentRocketMode = "Rocket" -- "Rocket" ou "Platform"
@@ -1420,7 +1470,6 @@ RocketBtn.MouseButton1Click:Connect(function()
 		local timeVal = tonumber(ReturnTimeBox.Text) or 0.5
 		Rocket(target, LocalPlayer, velVal, timeVal)
 	else
-		-- Modo Platform com botões Up/Down movidos mais para cima (0.75)
 		Platform(target, LocalPlayer, function(adjustOffsetCallback)
 			if PlatformGUI then PlatformGUI:Destroy() end
 			
@@ -1514,4 +1563,4 @@ createButton("Stop Weld (Turn Off)", 275, 290, 15, function()
 	StopWeld()
 end)
 
-notify("Universal Weld", "Script updated successfully with Slam-drop and moved UI buttons!")
+notify("Universal Weld", "Script updated successfully with Slam-drop interval and minimize button!")
