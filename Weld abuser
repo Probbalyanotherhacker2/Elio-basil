@@ -1,4 +1,4 @@
---// PART 1: Services, Global Variables & Target Resolution
+--// PART 1: Services, Global Variables, Key Tracking & Target Resolution
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
@@ -22,6 +22,34 @@ local SlamInterval = 0.2          -- Slam hold interval (default 0.2s, editable)
 local SlamOffsetDistance = 3      -- Distance/offset from victim for Slam (editable)
 local SelectedSlamTarget = nil    -- Target Vector3 for directional Slam
 local SelectedMagicTarget = nil   -- Target Vector3 for directional Magic Carpet velocity
+
+--// Key State Tracker for Magic Carpet Dpad / WASD + E/Q
+local activeKeys = {
+	W = false, A = false, S = false, D = false,
+	E = false, Q = false
+}
+
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+	if gameProcessed then return end
+	if UserInputService:GetFocusedTextBox() then return end
+	local key = input.KeyCode
+	if key == Enum.KeyCode.W or key == Enum.KeyCode.Up then activeKeys.W = true end
+	if key == Enum.KeyCode.S or key == Enum.KeyCode.Down then activeKeys.S = true end
+	if key == Enum.KeyCode.A or key == Enum.KeyCode.Left then activeKeys.A = true end
+	if key == Enum.KeyCode.D or key == Enum.KeyCode.Right then activeKeys.D = true end
+	if key == Enum.KeyCode.E then activeKeys.E = true end
+	if key == Enum.KeyCode.Q then activeKeys.Q = true end
+end)
+
+UserInputService.InputEnded:Connect(function(input)
+	local key = input.KeyCode
+	if key == Enum.KeyCode.W or key == Enum.KeyCode.Up then activeKeys.W = false end
+	if key == Enum.KeyCode.S or key == Enum.KeyCode.Down then activeKeys.S = false end
+	if key == Enum.KeyCode.A or key == Enum.KeyCode.Left then activeKeys.A = false end
+	if key == Enum.KeyCode.D or key == Enum.KeyCode.Right then activeKeys.D = false end
+	if key == Enum.KeyCode.E then activeKeys.E = false end
+	if key == Enum.KeyCode.Q then activeKeys.Q = false end
+end)
 
 --// Safe Notification Function
 local function notify(title, text)
@@ -413,17 +441,38 @@ local function MagicCarpet(targetInput, speaker: Player, customVelocity, customT
 					if connection then connection:Disconnect() end
 					return
 				end
-				-- Keeps position at MagicCarpetHeight without altering angle/position based on target direction
+				-- Maintains position at MagicCarpetHeight above target
 				Root.CFrame = TRoot.CFrame * CFrame.new(0, MagicCarpetHeight, 0) * CFrame.Angles(math.rad(RocketAngle), 0, 0)
 				
-				local velPower = (customVelocity and customVelocity ~= 0) and customVelocity or 0
-				local moveDir = Vector3.new(0, velPower, 0)
+				local velPower = (customVelocity and customVelocity ~= 0) and customVelocity or 200
+				local camera = workspace.CurrentCamera
+				local lookV = camera.CFrame.LookVector
+				local rightV = camera.CFrame.RightVector
+				local flatLook = Vector3.new(lookV.X, 0, lookV.Z)
+				if flatLook.Magnitude > 0 then flatLook = flatLook.Unit else flatLook = Vector3.new(0, 0, -1) end
+				local flatRight = Vector3.new(rightV.X, 0, rightV.Z)
+				if flatRight.Magnitude > 0 then flatRight = flatRight.Unit else flatRight = Vector3.new(1, 0, 0) end
 
-				if SelectedMagicTarget then
+				-- Dpad / WASD + E/Q calculation
+				local moveDir = Vector3.zero
+				if activeKeys.W then moveDir = moveDir + flatLook end
+				if activeKeys.S then moveDir = moveDir - flatLook end
+				if activeKeys.D then moveDir = moveDir + flatRight end
+				if activeKeys.A then moveDir = moveDir - flatRight end
+				if activeKeys.E then moveDir = moveDir + Vector3.new(0, 1, 0) end
+				if activeKeys.Q then moveDir = moveDir + Vector3.new(0, -1, 0) end
+
+				if moveDir.Magnitude > 0 then
+					moveDir = moveDir.Unit * velPower
+				elseif SelectedMagicTarget then
 					local dir = (SelectedMagicTarget - Root.Position)
 					if dir.Magnitude > 0.1 then
 						moveDir = dir.Unit * math.abs(velPower)
+					else
+						moveDir = Vector3.new(0, velPower, 0)
 					end
+				else
+					moveDir = Vector3.new(0, velPower, 0)
 				end
 
 				Root.AssemblyLinearVelocity = moveDir
@@ -442,14 +491,12 @@ local function MagicCarpet(targetInput, speaker: Player, customVelocity, customT
 			end)
 
 			local bv = nil
-			local velPower = (customVelocity and customVelocity ~= 0) and customVelocity or 0
-			if velPower > 0 then
-				bv = Instance.new("BodyVelocity")
-				bv.Velocity = Vector3.new(0, velPower, 0)
-				bv.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
-				bv.P = 1250
-				bv.Parent = Root
-			end
+			local initialVel = Vector3.new(0, (customVelocity and customVelocity ~= 0) and customVelocity or 200, 0)
+			bv = Instance.new("BodyVelocity")
+			bv.Velocity = initialVel
+			bv.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
+			bv.P = 1250
+			bv.Parent = Root
 
 			CurrentWeld = {
 				Destroy = function()
@@ -466,10 +513,10 @@ local function MagicCarpet(targetInput, speaker: Player, customVelocity, customT
 				end
 			}
 
-			notify("Magic Carpet", "Launching " .. TPlayer.Name .. "...")
+			notify("Magic Carpet", "Launching " .. TPlayer.Name .. " (Use WASD + E/Q to steer)!")
 
 			local elapsed = 0
-			local waitTime = customTime or 0.5
+			local waitTime = customTime or 999999 -- Keeps running until Stop Weld or manual stop
 			while elapsed < waitTime do
 				if not magicRunning then break end
 				task.wait(0.05)
@@ -1004,7 +1051,7 @@ InfoText.Text = [[TARGET COMMANDS:
 FEATURES:
 • Soaring beast: Teleports around target then flings to void.
 • Rocket: Launches user and target up with Velocity.
-• Magic Carpet: Floats at offset 5.0 with directional velocity.
+• Magic Carpet: Offset 5.0, steerable with WASD + E/Q.
 • Firework: Lifts target and explodes with fling.
 • Combo: Soars, lifts, and executes fling explosion.
 • Slam: Directional push using 🎯 Pick Dir tool.
@@ -1339,7 +1386,7 @@ end)
 
 createButton("Magic Carpet", 170, 195, 15, function(target)
 	local velVal = tonumber(VelocityBox.Text)
-	local timeVal = tonumber(ReturnTimeBox.Text) or 0.5
+	local timeVal = tonumber(ReturnTimeBox.Text) or 999999
 	MagicCarpet(target, LocalPlayer, velVal, timeVal)
 end)
 
@@ -1383,4 +1430,4 @@ createButton("Stop Weld (Turn Off)", 290, 290, 15, function()
 	StopWeld()
 end)
 
-notify("Universal Weld", "Script updated and all bugs fixed successfully!")
+notify("Universal Weld", "Magic Carpet updated with WASD + E/Q steering logic!")
