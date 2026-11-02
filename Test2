@@ -21,12 +21,6 @@ local SlamInterval = 0.2
 local SlamOffsetDistance = 3   
 local SelectedSlamTarget = nil 
 
---// Magic Carpet Variables
-local MagicCarpetOffset = 4.5  
-local MagicCarpetRunning = false
-local MagicCarpetMoveDir = Vector3.zero
-local MagicCarpetGui = nil
-
 --// Safe Notification Function
 local function notify(title, text)
 	pcall(function()
@@ -144,9 +138,6 @@ end
 --// Stop Everything Function
 local function StopWeld()
 	stopSoaringAnimation()
-	MagicCarpetRunning = false
-	MagicCarpetMoveDir = Vector3.zero
-	if MagicCarpetGui then MagicCarpetGui.Visible = false end
 
 	if CurrentWeld then
 		if type(CurrentWeld) == "table" and CurrentWeld.Destroy then
@@ -385,7 +376,7 @@ local function Rocket(targetInput, speaker: Player, customVelocity, customTime)
 		end)
 	end)
 end
---// PART 3: Firework, Combo, Slam & Magic Carpet Functions
+--// PART 3: Firework, Combo & Slam Functions
 
 local function Firework(targetInput, speaker: Player)
 	if not targetInput or targetInput == "" then return notify('Player Required', 'No target provided for Firework!') end
@@ -743,94 +734,7 @@ local function Slam(targetInput, speaker: Player, customVelocity)
 		end)
 	end)
 end
-
-local function MagicCarpet(targetInput, speaker: Player, customVelocity)
-	if not targetInput or targetInput == "" then return notify('Player Required', 'No target provided for Magic carpet!') end
-
-	resolveTarget(targetInput, speaker, function(v)
-		local TPlayer = Players:FindFirstChild(v)
-		if not TPlayer or not TPlayer.Character or TPlayer == speaker then return end
-
-		StopWeld()
-
-		local TCharacter = TPlayer.Character
-		local TRoot = TCharacter:WaitForChild("HumanoidRootPart", 2) or TCharacter:FindFirstChild("Torso") or TCharacter:FindFirstChild("UpperTorso")
-		if not TRoot then return end
-
-		local character = speaker.Character
-		if not character then return end
-		local Root = character:WaitForChild("HumanoidRootPart", 2)
-		if not Root then return end
-
-		MagicCarpetRunning = true
-		if MagicCarpetGui then MagicCarpetGui.Visible = true end
-
-		task.spawn(function()
-			local initialCFrame = Root.CFrame
-			pcall(function() workspace.FallenPartsDestroyHeight = 0/0 end)
-
-			for _, part in pairs(character:GetDescendants()) do
-				if part:IsA("BasePart") then
-					part.CanCollide = false
-					part.Massless = true
-				end
-			end
-
-			local camera = workspace.CurrentCamera
-			local connection
-			connection = RunService.Heartbeat:Connect(function()
-				if not MagicCarpetRunning or not character.Parent or not TRoot.Parent then
-					if connection then connection:Disconnect() end
-					return
-				end
-
-				pcall(function()
-					local targetCFrame = TRoot.CFrame * CFrame.new(0, -MagicCarpetOffset, 0) * CFrame.Angles(math.rad(90), 0, 0)
-					Root.CFrame = targetCFrame
-
-					local velPower = (customVelocity and customVelocity ~= 0) and customVelocity or 200
-
-					local camCF = camera.CFrame
-					local lookVec = Vector3.new(camCF.LookVector.X, 0, camCF.LookVector.Z).Unit
-					local rightVec = Vector3.new(camCF.RightVector.X, 0, camCF.RightVector.Z).Unit
-
-					local moveVel = Vector3.zero
-					if MagicCarpetMoveDir.Magnitude > 0 then
-						local moveDirW = (lookVec * MagicCarpetMoveDir.Z) + (rightVec * MagicCarpetMoveDir.X)
-						moveVel = moveDirW * velPower
-					end
-
-					Root.AssemblyLinearVelocity = moveVel
-					Root.AssemblyAngularVelocity = Vector3.zero
-					Root.RotVelocity = Vector3.zero
-
-					if sethiddenproperty then
-						sethiddenproperty(Root, "PhysicsRepRootPart", TRoot)
-					end
-				end)
-			end)
-
-			CurrentWeld = {
-				Destroy = function()
-					MagicCarpetRunning = false
-					MagicCarpetMoveDir = Vector3.zero
-					if MagicCarpetGui then MagicCarpetGui.Visible = false end
-					if connection then connection:Disconnect() end
-					if Root then
-						Root.CFrame = initialCFrame
-						Root.AssemblyLinearVelocity = Vector3.zero
-						Root.AssemblyAngularVelocity = Vector3.zero
-						Root.RotVelocity = Vector3.zero
-					end
-					pcall(function() workspace.FallenPartsDestroyHeight = OriginalFPDH end)
-				end
-			}
-
-			notify("Magic Carpet", "Riding with " .. TPlayer.Name .. "!")
-		end)
-	end)
-end
---// PART 4: Graphical Interface, Dpad + E/Q UI & Controls
+--// PART 4: Graphical Interface & Config Menu
 local UserInputService = game:GetService("UserInputService")
 local LocalPlayer = game:GetService("Players").LocalPlayer
 local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
@@ -840,7 +744,7 @@ ScreenGui.Name = "UniversalWeldGUI"
 ScreenGui.ResetOnSpawn = false
 
 local MainFrame = Instance.new("Frame", ScreenGui)
-MainFrame.Size = UDim2.new(0, 320, 0, 390)
+MainFrame.Size = UDim2.new(0, 320, 0, 355)
 MainFrame.Position = UDim2.new(0.4, 0, 0.3, 0)
 MainFrame.BackgroundColor3 = Color3.fromRGB(35, 42, 54)
 MainFrame.BorderSizePixel = 0
@@ -897,57 +801,6 @@ InfoToggleBtn.Text = "ℹ️ Info"
 InfoToggleBtn.TextSize = 11
 Instance.new("UICorner", InfoToggleBtn).CornerRadius = UDim.new(0, 5)
 
---// Magic Carpet Dpad & E/Q UI
-MagicCarpetGui = Instance.new("Frame", ScreenGui)
-MagicCarpetGui.Size = UDim2.new(0, 160, 0, 160)
-MagicCarpetGui.Position = UDim2.new(1, -180, 1, -200)
-MagicCarpetGui.BackgroundTransparency = 1
-MagicCarpetGui.Visible = false
-
-local function createDpadBtn(text, size, pos)
-	local btn = Instance.new("TextButton", MagicCarpetGui)
-	btn.Size = size
-	btn.Position = pos
-	btn.BackgroundColor3 = Color3.fromRGB(50, 62, 80)
-	btn.TextColor3 = Color3.fromRGB(255, 255, 255)
-	btn.Text = text
-	btn.TextSize = 16
-	btn.FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json", Enum.FontWeight.Bold)
-	Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 6)
-	return btn
-end
-
-local UpBtn = createDpadBtn("⬆️", UDim2.new(0, 45, 0, 45), UDim2.new(0, 45, 0, 0))
-local DownBtn = createDpadBtn("⬇️", UDim2.new(0, 45, 0, 45), UDim2.new(0, 45, 0, 90))
-local LeftBtn = createDpadBtn("⬅️", UDim2.new(0, 45, 0, 45), UDim2.new(0, 0, 0, 45))
-local RightBtn = createDpadBtn("➡️", UDim2.new(0, 45, 0, 45), UDim2.new(0, 90, 0, 45))
-
-local EBtn = createDpadBtn("E (+)", UDim2.new(0, 35, 0, 45), UDim2.new(0, 140, 0, 0))
-local QBtn = createDpadBtn("Q (-)", UDim2.new(0, 35, 0, 45), UDim2.new(0, 140, 0, 90))
-
-UpBtn.MouseButton1Down:Connect(function() MagicCarpetMoveDir = Vector3.new(MagicCarpetMoveDir.X, 0, 1) end)
-UpBtn.MouseButton1Up:Connect(function() if MagicCarpetMoveDir.Z > 0 then MagicCarpetMoveDir = Vector3.new(MagicCarpetMoveDir.X, 0, 0) end end)
-
-DownBtn.MouseButton1Down:Connect(function() MagicCarpetMoveDir = Vector3.new(MagicCarpetMoveDir.X, 0, -1) end)
-DownBtn.MouseButton1Up:Connect(function() if MagicCarpetMoveDir.Z < 0 then MagicCarpetMoveDir = Vector3.new(MagicCarpetMoveDir.X, 0, 0) end end)
-
-LeftBtn.MouseButton1Down:Connect(function() MagicCarpetMoveDir = Vector3.new(-1, 0, MagicCarpetMoveDir.Z) end)
-LeftBtn.MouseButton1Up:Connect(function() if MagicCarpetMoveDir.X < 0 then MagicCarpetMoveDir = Vector3.new(0, 0, MagicCarpetMoveDir.Z) end end)
-
-RightBtn.MouseButton1Down:Connect(function() MagicCarpetMoveDir = Vector3.new(1, 0, MagicCarpetMoveDir.Z) end)
-RightBtn.MouseButton1Up:Connect(function() if MagicCarpetMoveDir.X > 0 then MagicCarpetMoveDir = Vector3.new(0, 0, MagicCarpetMoveDir.Z) end end)
-
-EBtn.MouseButton1Click:Connect(function()
-	MagicCarpetOffset = MagicCarpetOffset + 0.25
-	notify("Magic Carpet", "Offset: " .. string.format("%.2f", MagicCarpetOffset))
-end)
-
-QBtn.MouseButton1Click:Connect(function()
-	MagicCarpetOffset = MagicCarpetOffset - 0.25
-	notify("Magic Carpet", "Offset: " .. string.format("%.2f", MagicCarpetOffset))
-end)
-
---// Config & Info Frames
 local ConfigFrame = Instance.new("ScrollingFrame", ScreenGui)
 ConfigFrame.Size = UDim2.new(0, 220, 0, 420)
 ConfigFrame.Position = UDim2.new(0.4, 330, 0.3, 0)
@@ -1033,7 +886,6 @@ InfoText.Text = [[TARGET COMMANDS:
 FEATURES:
 • Soaring beast / Rocket / Firework / Combo.
 • Slam: Directional push using 🎯 Pick Dir.
-• Magic Carpet: Carries target underneath at 90° with Dpad & E/Q offset control.
 • Stop Weld: Releases active welds.]]
 
 -- Configuration Items
@@ -1119,12 +971,12 @@ Instance.new("UICorner", ReturnTimeBox).CornerRadius = UDim.new(0, 6)
 
 local function createButton(text, posY, width, posX, callback)
 	local btn = Instance.new("TextButton", MainFrame)
-	btn.Size = UDim2.new(0, width or 290, 0, 26)
+	btn.Size = UDim2.new(0, width or 290, 0, 28)
 	btn.Position = UDim2.new(0, posX or 15, 0, posY)
 	btn.BackgroundColor3 = Color3.fromRGB(66, 83, 103)
 	btn.TextColor3 = Color3.fromRGB(255, 255, 255)
 	btn.Text = text
-	btn.TextSize = 12
+	btn.TextSize = 13
 	Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 6)
 	btn.MouseButton1Click:Connect(function()
 		local targetName = TargetBox.Text
@@ -1137,28 +989,28 @@ createButton("Soaring beast", 110, 290, 15, function(target)
 	SoaringBeast(target, LocalPlayer)
 end)
 
-createButton("Rocket", 140, 290, 15, function(target)
+createButton("Rocket", 143, 290, 15, function(target)
 	local velVal = tonumber(VelocityBox.Text)
 	local timeVal = tonumber(ReturnTimeBox.Text) or 0.5
 	Rocket(target, LocalPlayer, velVal, timeVal)
 end)
 
-createButton("Firework (Lift & Fling)", 170, 290, 15, function(target)
+createButton("Firework (Lift & Fling)", 176, 290, 15, function(target)
 	Firework(target, LocalPlayer)
 end)
 
-createButton("Combo (Soaring + Lift + Fling)", 200, 290, 15, function(target)
+createButton("Combo (Soaring + Lift + Fling)", 209, 290, 15, function(target)
 	Combo(target, LocalPlayer)
 end)
 
-createButton("Slam (Directional)", 230, 195, 15, function(target)
+createButton("Slam (Directional)", 242, 195, 15, function(target)
 	local velVal = tonumber(VelocityBox.Text) or 200
 	Slam(target, LocalPlayer, velVal)
 end)
 
 local PickDirBtn = Instance.new("TextButton", MainFrame)
-PickDirBtn.Size = UDim2.new(0, 90, 0, 26)
-PickDirBtn.Position = UDim2.new(0, 215, 0, 230)
+PickDirBtn.Size = UDim2.new(0, 90, 0, 28)
+PickDirBtn.Position = UDim2.new(0, 215, 0, 242)
 PickDirBtn.BackgroundColor3 = Color3.fromRGB(80, 100, 130)
 PickDirBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
 PickDirBtn.Text = "🎯 Pick Dir"
@@ -1190,13 +1042,8 @@ PickDirBtn.MouseButton1Click:Connect(function()
 	end)
 end)
 
-createButton("Magic Carpet (90° + Dpad)", 260, 290, 15, function(target)
-	local velVal = tonumber(VelocityBox.Text) or 200
-	MagicCarpet(target, LocalPlayer, velVal)
-end)
-
-createButton("Stop Weld (Turn Off)", 290, 290, 15, function()
+createButton("Stop Weld (Turn Off)", 275, 290, 15, function()
 	StopWeld()
 end)
 
-notify("Universal Weld", "Script successfully loaded in 4 parts!")
+notify("Universal Weld", "Script reverted to version before Magic Carpet!")
