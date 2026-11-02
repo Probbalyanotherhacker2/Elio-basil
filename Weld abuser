@@ -1,4 +1,4 @@
---// PART 1: Services, Variables, Animation & Target Resolution
+--// PART 1: Services, Global Variables & Target Resolution
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
@@ -11,21 +11,15 @@ local OriginalFPDH = workspace.FallenPartsDestroyHeight
 local SoaringAnimTrack = nil
 
 --// Editable Configuration Variables
-local RocketAngle = 0          
-local RocketBaseHeight = -3.5  
-local SoaringSpeed = 0.08      
-local SoaringSequences = 3     
-local VoidDropDelay = 4        
-local FireworkInterval = 2     
-local SlamInterval = 0.2       
-local SlamOffsetDistance = 3   
-local SelectedSlamTarget = nil 
-
---// Magic Carpet Variables
-local MagicCarpetOffset = 4.5  
-local MagicCarpetRunning = false
-local MagicCarpetMoveDir = Vector3.zero
-local MagicCarpetGui = nil
+local RocketAngle = 0          -- Rocket angle (0 to 360)
+local RocketBaseHeight = -3.5  -- Rocket base height
+local SoaringSpeed = 0.08      -- Soaring teleport delay (seconds)
+local SoaringSequences = 3     -- Soaring telemetry cycles (0 skips directly to void)
+local VoidDropDelay = 4        -- Final Void Drop hold delay (seconds)
+local FireworkInterval = 2     -- Firework/Combo hold interval (seconds)
+local SlamInterval = 0.2       -- Slam hold interval (default 0.2s, editable)
+local SlamOffsetDistance = 3   -- Distance/offset from victim for Slam (editable)
+local SelectedSlamTarget = nil -- Target Vector3 for directional Slam
 
 --// Safe Notification Function
 local function notify(title, text)
@@ -38,7 +32,7 @@ local function notify(title, text)
 	end)
 end
 
---// Animation Management Functions
+--// Animation Management Functions (Only for Soaring / Combo)
 local function playSoaringAnimation(character)
 	local humanoid = character and character:FindFirstChildOfClass("Humanoid")
 	if humanoid then
@@ -66,7 +60,7 @@ local function stopSoaringAnimation()
 	end
 end
 
---// Advanced Target Resolver
+--// Advanced Target Resolver (Name, nearest, farthest, random)
 local function resolveTarget(stringer, speaker, callback)
 	stringer = stringer and string.match(stringer, "^%s*(.-)%s*$") or ""
 	stringer = string.lower(stringer)
@@ -140,14 +134,10 @@ local function resolveTarget(stringer, speaker, callback)
 		notify("Target", "Player not found!")
 	end
 end
---// PART 2: StopWeld, SoaringBeast & Rocket Functions
 
---// Stop Everything Function
+--// Stop Everything, Release Player and Clear Connections
 local function StopWeld()
 	stopSoaringAnimation()
-	MagicCarpetRunning = false
-	MagicCarpetMoveDir = Vector3.zero
-	if MagicCarpetGui then MagicCarpetGui.Visible = false end
 
 	if CurrentWeld then
 		if type(CurrentWeld) == "table" and CurrentWeld.Destroy then
@@ -161,8 +151,8 @@ local function StopWeld()
 	workspace.FallenPartsDestroyHeight = OriginalFPDH
 	notify("Welder", "Actions stopped and player released!")
 end
+--// PART 2: SoaringBeast, Rocket & Magic Carpet Functions
 
---// Soaring Beast Function
 local function SoaringBeast(targetInput, speaker: Player)
 	if not targetInput or targetInput == "" then return notify('Player Required', 'No target provided for Soaring beast!') end
 
@@ -248,6 +238,7 @@ local function SoaringBeast(targetInput, speaker: Player)
 					if sethiddenproperty then
 						pcall(function()
 							sethiddenproperty(Root, "PhysicsRepRootPart", TRoot)
+							sethiddenproperty(Root, "PhysicsRepRootRef", InstanceHandle.new(TRoot))
 						end)
 					end
 				end)
@@ -283,7 +274,6 @@ local function SoaringBeast(targetInput, speaker: Player)
 	end)
 end
 
---// Rocket Function
 local function Rocket(targetInput, speaker: Player, customVelocity, customTime)
 	if not targetInput or targetInput == "" then return notify('Player Required', 'No target provided for Rocket!') end
 
@@ -330,6 +320,7 @@ local function Rocket(targetInput, speaker: Player, customVelocity, customTime)
 				if sethiddenproperty then
 					pcall(function()
 						sethiddenproperty(Root, "PhysicsRepRootPart", TRoot)
+						sethiddenproperty(Root, "PhysicsRepRootRef", InstanceHandle.new(TRoot))
 					end)
 				end
 			end)
@@ -385,9 +376,112 @@ local function Rocket(targetInput, speaker: Player, customVelocity, customTime)
 		end)
 	end)
 end
---// PART 3: Firework, Combo, Slam & Magic Carpet Functions
 
---// Firework Function
+--// Magic Carpet Function (Temporary exact copy of Rocket)
+local function MagicCarpet(targetInput, speaker: Player, customVelocity, customTime)
+	if not targetInput or targetInput == "" then return notify('Player Required', 'No target provided for Magic carpet!') end
+
+	resolveTarget(targetInput, speaker, function(v)
+		local TPlayer = Players:FindFirstChild(v)
+		if not TPlayer or not TPlayer.Character or TPlayer == speaker then return end
+
+		StopWeld()
+
+		local TCharacter = TPlayer.Character
+		local TRoot = TCharacter:WaitForChild("HumanoidRootPart", 2) or TCharacter:FindFirstChild("Torso") or TCharacter:FindFirstChild("UpperTorso")
+		if not TRoot then return end
+
+		local character = speaker.Character
+		if not character then return end
+		local Root = character:WaitForChild("HumanoidRootPart", 2)
+		if not Root then return end
+
+		task.spawn(function()
+			local initialCFrame = Root.CFrame
+			workspace.FallenPartsDestroyHeight = 0/0
+
+			for _, part in pairs(character:GetDescendants()) do
+				if part:IsA("BasePart") then
+					part.CanCollide = false
+					part.Massless = true
+				end
+			end
+
+			local magicRunning = true
+			local connection
+			connection = RunService.Heartbeat:Connect(function()
+				if not magicRunning or not character.Parent or not TRoot.Parent then
+					if connection then connection:Disconnect() end
+					return
+				end
+				Root.CFrame = TRoot.CFrame * CFrame.new(0, RocketBaseHeight, 0) * CFrame.Angles(math.rad(RocketAngle), 0, 0)
+				
+				local velPower = (customVelocity and customVelocity ~= 0) and customVelocity or 0
+				Root.AssemblyLinearVelocity = Vector3.new(0, velPower, 0)
+				Root.AssemblyAngularVelocity = Vector3.zero
+				Root.RotVelocity = Vector3.zero
+				
+				if sethiddenproperty then
+					pcall(function()
+						sethiddenproperty(Root, "PhysicsRepRootPart", TRoot)
+						sethiddenproperty(Root, "PhysicsRepRootRef", InstanceHandle.new(TRoot))
+					end)
+				end
+			end)
+
+			local bv = nil
+			local velPower = (customVelocity and customVelocity ~= 0) and customVelocity or 0
+			if velPower > 0 then
+				bv = Instance.new("BodyVelocity")
+				bv.Velocity = Vector3.new(0, velPower, 0)
+				bv.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
+				bv.P = 1250
+				bv.Parent = Root
+			end
+
+			CurrentWeld = {
+				Destroy = function()
+					magicRunning = false
+					if connection then connection:Disconnect() end
+					if bv then bv:Destroy() end
+					if Root then
+						Root.CFrame = initialCFrame
+						Root.AssemblyLinearVelocity = Vector3.zero
+						Root.AssemblyAngularVelocity = Vector3.zero
+						Root.RotVelocity = Vector3.zero
+					end
+					workspace.FallenPartsDestroyHeight = OriginalFPDH
+				end
+			}
+
+			notify("Magic Carpet", "Launching " .. TPlayer.Name .. "...")
+
+			local elapsed = 0
+			local waitTime = customTime or 0.5
+			while elapsed < waitTime do
+				if not magicRunning then break end
+				task.wait(0.05)
+				elapsed = elapsed + 0.05
+			end
+
+			if magicRunning then
+				if connection then connection:Disconnect() end
+				if bv then bv:Destroy() end
+
+				Root.CFrame = initialCFrame
+				Root.AssemblyLinearVelocity = Vector3.zero
+				Root.AssemblyAngularVelocity = Vector3.zero
+				Root.RotVelocity = Vector3.zero
+				workspace.FallenPartsDestroyHeight = OriginalFPDH
+				CurrentWeld = nil
+
+				notify("Magic Carpet", "Returned to initial position.")
+			end
+		end)
+	end)
+end
+--// PART 3: Firework, Combo & Directional Slam Functions
+
 local function Firework(targetInput, speaker: Player)
 	if not targetInput or targetInput == "" then return notify('Player Required', 'No target provided for Firework!') end
 
@@ -440,6 +534,7 @@ local function Firework(targetInput, speaker: Player)
 				if sethiddenproperty then
 					pcall(function()
 						sethiddenproperty(Root, "PhysicsRepRootPart", TRoot)
+						sethiddenproperty(Root, "PhysicsRepRootRef", InstanceHandle.new(TRoot))
 					end)
 				end
 			end)
@@ -496,7 +591,6 @@ local function Firework(targetInput, speaker: Player)
 	end)
 end
 
---// Combo Function
 local function Combo(targetInput, speaker: Player)
 	if not targetInput or targetInput == "" then return notify('Player Required', 'No target provided for Combo!') end
 
@@ -591,6 +685,7 @@ local function Combo(targetInput, speaker: Player)
 				if sethiddenproperty then
 					pcall(function()
 						sethiddenproperty(Root, "PhysicsRepRootPart", TRoot)
+						sethiddenproperty(Root, "PhysicsRepRootRef", InstanceHandle.new(TRoot))
 					end)
 				end
 			end)
@@ -640,7 +735,7 @@ local function Combo(targetInput, speaker: Player)
 	end)
 end
 
---// Slam Function
+--// Directional Slam Function (Uses Pick Dir target to position opposite and push)
 local function Slam(targetInput, speaker: Player, customVelocity)
 	if not targetInput or targetInput == "" then return notify('Player Required', 'No target provided for Slam!') end
 
@@ -680,7 +775,7 @@ local function Slam(targetInput, speaker: Player, customVelocity)
 				end
 
 				pcall(function()
-					local velPower = (customVelocity and customVelocity ~= 0) and customVelocity or 200
+					local velPower = (customVelocity and customVelocity ~= 0) and customVelocity or 0
 					local pushDir = Vector3.new(0, -1, 0)
 
 					if SelectedSlamTarget then
@@ -703,6 +798,7 @@ local function Slam(targetInput, speaker: Player, customVelocity)
 
 					if sethiddenproperty then
 						sethiddenproperty(Root, "PhysicsRepRootPart", TRoot)
+						sethiddenproperty(Root, "PhysicsRepRootRef", InstanceHandle.new(TRoot))
 					end
 				end)
 			end)
@@ -746,101 +842,17 @@ local function Slam(targetInput, speaker: Player, customVelocity)
 		end)
 	end)
 end
+--// PART 4: Graphical Interface, Draggable & Scrollable Config Menu & UI Buttons
+local UserInputService = game:GetService("UserInputService")
+local LocalPlayer = game:GetService("Players").LocalPlayer
+local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
 
---// Magic Carpet Function
-local function MagicCarpet(targetInput, speaker: Player, customVelocity)
-	if not targetInput or targetInput == "" then return notify('Player Required', 'No target provided for Magic carpet!') end
-
-	resolveTarget(targetInput, speaker, function(v)
-		local TPlayer = Players:FindFirstChild(v)
-		if not TPlayer or not TPlayer.Character or TPlayer == speaker then return end
-
-		StopWeld()
-
-		local TCharacter = TPlayer.Character
-		local TRoot = TCharacter:WaitForChild("HumanoidRootPart", 2) or TCharacter:FindFirstChild("Torso") or TCharacter:FindFirstChild("UpperTorso")
-		if not TRoot then return end
-
-		local character = speaker.Character
-		if not character then return end
-		local Root = character:WaitForChild("HumanoidRootPart", 2)
-		if not Root then return end
-
-		MagicCarpetRunning = true
-		if MagicCarpetGui then MagicCarpetGui.Visible = true end
-
-		task.spawn(function()
-			local initialCFrame = Root.CFrame
-			workspace.FallenPartsDestroyHeight = 0/0
-
-			for _, part in pairs(character:GetDescendants()) do
-				if part:IsA("BasePart") then
-					part.CanCollide = false
-					part.Massless = true
-				end
-			end
-
-			local camera = workspace.CurrentCamera
-			local connection
-			connection = RunService.Heartbeat:Connect(function()
-				if not MagicCarpetRunning or not character.Parent or not TRoot.Parent then
-					if connection then connection:Disconnect() end
-					return
-				end
-
-				pcall(function()
-					local targetCFrame = TRoot.CFrame * CFrame.new(0, -MagicCarpetOffset, 0) * CFrame.Angles(math.rad(RocketAngle), 0, 0)
-					Root.CFrame = targetCFrame
-
-					local velPower = (customVelocity and customVelocity ~= 0) and customVelocity or 200
-
-					local camCF = camera.CFrame
-					local lookVec = Vector3.new(camCF.LookVector.X, 0, camCF.LookVector.Z).Unit
-					local rightVec = Vector3.new(camCF.RightVector.X, 0, camCF.RightVector.Z).Unit
-
-					local moveVel = Vector3.zero
-					if MagicCarpetMoveDir.Magnitude > 0 then
-						local moveDirW = (lookVec * MagicCarpetMoveDir.Z) + (rightVec * MagicCarpetMoveDir.X)
-						moveVel = moveDirW * velPower
-					end
-
-					Root.AssemblyLinearVelocity = moveVel
-					Root.AssemblyAngularVelocity = Vector3.zero
-					Root.RotVelocity = Vector3.zero
-
-					if sethiddenproperty then
-						sethiddenproperty(Root, "PhysicsRepRootPart", TRoot)
-					end
-				end)
-			end)
-
-			CurrentWeld = {
-				Destroy = function()
-					MagicCarpetRunning = false
-					MagicCarpetMoveDir = Vector3.zero
-					if MagicCarpetGui then MagicCarpetGui.Visible = false end
-					if connection then connection:Disconnect() end
-					if Root then
-						Root.CFrame = initialCFrame
-						Root.AssemblyLinearVelocity = Vector3.zero
-						Root.AssemblyAngularVelocity = Vector3.zero
-						Root.RotVelocity = Vector3.zero
-					end
-					workspace.FallenPartsDestroyHeight = OriginalFPDH
-				end
-			}
-
-			notify("Magic Carpet", "Riding with " .. TPlayer.Name .. "!")
-		end)
-	end)
-end
---// PART 4: Graphical Interface, Dpad, Configuration & Initialization
 local ScreenGui = Instance.new("ScreenGui", PlayerGui)
 ScreenGui.Name = "UniversalWeldGUI"
 ScreenGui.ResetOnSpawn = false
 
 local MainFrame = Instance.new("Frame", ScreenGui)
-MainFrame.Size = UDim2.new(0, 320, 0, 390)
+MainFrame.Size = UDim2.new(0, 320, 0, 385)
 MainFrame.Position = UDim2.new(0.4, 0, 0.3, 0)
 MainFrame.BackgroundColor3 = Color3.fromRGB(35, 42, 54)
 MainFrame.BorderSizePixel = 0
@@ -896,55 +908,6 @@ InfoToggleBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
 InfoToggleBtn.Text = "ℹ️ Info"
 InfoToggleBtn.TextSize = 11
 Instance.new("UICorner", InfoToggleBtn).CornerRadius = UDim.new(0, 5)
-
-MagicCarpetGui = Instance.new("Frame", ScreenGui)
-MagicCarpetGui.Size = UDim2.new(0, 160, 0, 160)
-MagicCarpetGui.Position = UDim2.new(1, -180, 1, -200)
-MagicCarpetGui.BackgroundTransparency = 1
-MagicCarpetGui.Visible = false
-
-local function createDpadBtn(text, size, pos)
-	local btn = Instance.new("TextButton", MagicCarpetGui)
-	btn.Size = size
-	btn.Position = pos
-	btn.BackgroundColor3 = Color3.fromRGB(50, 62, 80)
-	btn.TextColor3 = Color3.fromRGB(255, 255, 255)
-	btn.Text = text
-	btn.TextSize = 16
-	btn.FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json", Enum.FontWeight.Bold)
-	Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 6)
-	return btn
-end
-
-local UpBtn = createDpadBtn("⬆️", UDim2.new(0, 45, 0, 45), UDim2.new(0, 45, 0, 0))
-local DownBtn = createDpadBtn("⬇️", UDim2.new(0, 45, 0, 45), UDim2.new(0, 45, 0, 90))
-local LeftBtn = createDpadBtn("⬅️", UDim2.new(0, 45, 0, 45), UDim2.new(0, 0, 0, 45))
-local RightBtn = createDpadBtn("➡️", UDim2.new(0, 45, 0, 45), UDim2.new(0, 90, 0, 45))
-
-local EBtn = createDpadBtn("E (+)", UDim2.new(0, 35, 0, 45), UDim2.new(0, 140, 0, 0))
-local QBtn = createDpadBtn("Q (-)", UDim2.new(0, 35, 0, 45), UDim2.new(0, 140, 0, 90))
-
-UpBtn.MouseButton1Down:Connect(function() MagicCarpetMoveDir = Vector3.new(MagicCarpetMoveDir.X, 0, 1) end)
-UpBtn.MouseButton1Up:Connect(function() if MagicCarpetMoveDir.Z > 0 then MagicCarpetMoveDir = Vector3.new(MagicCarpetMoveDir.X, 0, 0) end end)
-
-DownBtn.MouseButton1Down:Connect(function() MagicCarpetMoveDir = Vector3.new(MagicCarpetMoveDir.X, 0, -1) end)
-DownBtn.MouseButton1Up:Connect(function() if MagicCarpetMoveDir.Z < 0 then MagicCarpetMoveDir = Vector3.new(MagicCarpetMoveDir.X, 0, 0) end end)
-
-LeftBtn.MouseButton1Down:Connect(function() MagicCarpetMoveDir = Vector3.new(-1, 0, MagicCarpetMoveDir.Z) end)
-LeftBtn.MouseButton1Up:Connect(function() if MagicCarpetMoveDir.X < 0 then MagicCarpetMoveDir = Vector3.new(0, 0, MagicCarpetMoveDir.Z) end end)
-
-RightBtn.MouseButton1Down:Connect(function() MagicCarpetMoveDir = Vector3.new(1, 0, MagicCarpetMoveDir.Z) end)
-RightBtn.MouseButton1Up:Connect(function() if MagicCarpetMoveDir.X > 0 then MagicCarpetMoveDir = Vector3.new(0, 0, MagicCarpetMoveDir.Z) end end)
-
-EBtn.MouseButton1Click:Connect(function()
-	MagicCarpetOffset = MagicCarpetOffset + 0.25
-	notify("Magic Carpet", "Offset: " .. string.format("%.2f", MagicCarpetOffset))
-end)
-
-QBtn.MouseButton1Click:Connect(function()
-	MagicCarpetOffset = MagicCarpetOffset - 0.25
-	notify("Magic Carpet", "Offset: " .. string.format("%.2f", MagicCarpetOffset))
-end)
 
 local ConfigFrame = Instance.new("ScrollingFrame", ScreenGui)
 ConfigFrame.Size = UDim2.new(0, 220, 0, 420)
@@ -1026,62 +989,261 @@ InfoText.TextYAlignment = Enum.TextYAlignment.Top
 InfoText.TextWrapped = true
 InfoText.Text = [[TARGET COMMANDS:
 • [Name]: Type part of any player name.
-• nearest / farthest / random.
+• nearest: Automatically targets closest player.
+• farthest: Automatically targets furthest player.
+• random: Picks a random player in server.
 
 FEATURES:
-• Soaring beast / Rocket / Firework / Combo.
-• Slam: Directional push using 🎯 Pick Dir.
-• Magic Carpet: Carries target underneath at 90° with Dpad & E/Q offset control (Default offset: 4.5).
+• Soaring beast: Teleports around target then flings to void.
+• Rocket: Launches user and target up with Velocity.
+• Magic Carpet: Cloned Rocket function.
+• Firework: Lifts target and explodes with fling.
+• Combo: Soars, lifts, and executes fling explosion.
+• Slam: Directional push using 🎯 Pick Dir tool.
 • Stop Weld: Releases active welds.]]
 
-local function createConfigLabel(text, posY)
-	local lbl = Instance.new("TextLabel", ConfigFrame)
-	lbl.Size = UDim2.new(0, 190, 0, 20)
-	lbl.Position = UDim2.new(0, 15, 0, posY)
-	lbl.BackgroundTransparency = 1
-	lbl.Text = text
-	lbl.TextColor3 = Color3.fromRGB(200, 200, 200)
-	lbl.TextSize = 12
-	lbl.TextXAlignment = Enum.TextXAlignment.Left
-	return lbl
-end
+local AngleLabel = Instance.new("TextLabel", ConfigFrame)
+AngleLabel.Size = UDim2.new(0, 190, 0, 20)
+AngleLabel.Position = UDim2.new(0, 15, 0, 45)
+AngleLabel.BackgroundTransparency = 1
+AngleLabel.Text = "Rocket Angle (0 - 360°):"
+AngleLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+AngleLabel.TextSize = 12
+AngleLabel.TextXAlignment = Enum.TextXAlignment.Left
 
-local function createConfigBox(defaultVal, posY, callback)
-	local box = Instance.new("TextBox", ConfigFrame)
-	box.Size = UDim2.new(0, 190, 0, 28)
-	box.Position = UDim2.new(0, 15, 0, posY)
-	box.BackgroundColor3 = Color3.fromRGB(50, 62, 80)
-	box.TextColor3 = Color3.fromRGB(255, 255, 255)
-	box.Text = tostring(defaultVal)
-	box.TextSize = 13
-	Instance.new("UICorner", box).CornerRadius = UDim.new(0, 6)
-	box.FocusLost:Connect(function()
-		local val = tonumber(box.Text)
-		if val then callback(val, box) else box.Text = tostring(defaultVal) end
-	end)
-	return box
-end
+local AngleBox = Instance.new("TextBox", ConfigFrame)
+AngleBox.Size = UDim2.new(0, 190, 0, 28)
+AngleBox.Position = UDim2.new(0, 15, 0, 68)
+AngleBox.BackgroundColor3 = Color3.fromRGB(50, 62, 80)
+AngleBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+AngleBox.Text = tostring(RocketAngle)
+AngleBox.TextSize = 13
+Instance.new("UICorner", AngleBox).CornerRadius = UDim.new(0, 6)
 
-createConfigLabel("Rocket Angle (0 - 360°):", 45)
-local AngleBox = createConfigBox(RocketAngle, 68, function(v) RocketAngle = math.clamp(v, 0, 360) end)
+AngleBox.FocusLost:Connect(function()
+	local val = tonumber(AngleBox.Text)
+	if val then
+		if val < 0 then val = 0 elseif val > 360 then val = 360 end
+		RocketAngle = val
+		AngleBox.Text = tostring(val)
+	else
+		AngleBox.Text = tostring(RocketAngle)
+	end
+end)
 
-createConfigLabel("Soaring Speed (Delay s):", 110)
-local SpeedBox = createConfigBox(SoaringSpeed, 133, function(v) if v >= 0 then SoaringSpeed = v end end)
+local HeightLabel = Instance.new("TextLabel", ConfigFrame)
+HeightLabel.Size = UDim2.new(0, 190, 0, 20)
+HeightLabel.Position = UDim2.new(0, 15, 0, 105)
+HeightLabel.BackgroundTransparency = 1
+HeightLabel.Text = "Rocket Base Height:"
+HeightLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+HeightLabel.TextSize = 12
+HeightLabel.TextXAlignment = Enum.TextXAlignment.Left
 
-createConfigLabel("Soaring Sequences (0 = Void):", 175)
-local SeqBox = createConfigBox(SoaringSequences, 198, function(v) if v >= 0 then SoaringSequences = math.floor(v) end end)
+local HeightDisplay = Instance.new("TextLabel", ConfigFrame)
+HeightDisplay.Size = UDim2.new(0, 110, 0, 28)
+HeightDisplay.Position = UDim2.new(0, 15, 0, 128)
+HeightDisplay.BackgroundColor3 = Color3.fromRGB(50, 62, 80)
+HeightDisplay.TextColor3 = Color3.fromRGB(255, 255, 255)
+HeightDisplay.Text = string.format("%.1f", RocketBaseHeight)
+HeightDisplay.TextSize = 13
+Instance.new("UICorner", HeightDisplay).CornerRadius = UDim.new(0, 6)
 
-createConfigLabel("Void Drop Delay (s):", 240)
-local DelayBox = createConfigBox(VoidDropDelay, 263, function(v) if v >= 0 then VoidDropDelay = v end end)
+local MinusBtn = Instance.new("TextButton", ConfigFrame)
+MinusBtn.Size = UDim2.new(0, 36, 0, 28)
+MinusBtn.Position = UDim2.new(0, 130, 0, 128)
+MinusBtn.BackgroundColor3 = Color3.fromRGB(66, 83, 103)
+MinusBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+MinusBtn.Text = "-"
+MinusBtn.TextSize = 16
+Instance.new("UICorner", MinusBtn).CornerRadius = UDim.new(0, 6)
 
-createConfigLabel("Firework/Combo Interval (s):", 305)
-local FireworkBox = createConfigBox(FireworkInterval, 328, function(v) if v >= 0 then FireworkInterval = v end end)
+MinusBtn.MouseButton1Click:Connect(function()
+	RocketBaseHeight = RocketBaseHeight - 0.5
+	HeightDisplay.Text = string.format("%.1f", RocketBaseHeight)
+end)
 
-createConfigLabel("Slam Interval (s):", 370)
-local SlamIntervalBox = createConfigBox(SlamInterval, 393, function(v) if v >= 0 then SlamInterval = v end end)
+local PlusBtn = Instance.new("TextButton", ConfigFrame)
+PlusBtn.Size = UDim2.new(0, 36, 0, 28)
+PlusBtn.Position = UDim2.new(0, 169, 0, 128)
+PlusBtn.BackgroundColor3 = Color3.fromRGB(66, 83, 103)
+PlusBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+PlusBtn.Text = "+"
+PlusBtn.TextSize = 16
+Instance.new("UICorner", PlusBtn).CornerRadius = UDim.new(0, 6)
 
-createConfigLabel("Slam Offset Distance:", 435)
-local OffsetBox = createConfigBox(SlamOffsetDistance, 458, function(v) SlamOffsetDistance = v end end)
+PlusBtn.MouseButton1Click:Connect(function()
+	RocketBaseHeight = RocketBaseHeight + 0.5
+	HeightDisplay.Text = string.format("%.1f", RocketBaseHeight)
+end)
+
+local SpeedLabel = Instance.new("TextLabel", ConfigFrame)
+SpeedLabel.Size = UDim2.new(0, 190, 0, 20)
+SpeedLabel.Position = UDim2.new(0, 15, 0, 165)
+SpeedLabel.BackgroundTransparency = 1
+SpeedLabel.Text = "Soaring Speed (Delay s):"
+SpeedLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+SpeedLabel.TextSize = 12
+SpeedLabel.TextXAlignment = Enum.TextXAlignment.Left
+
+local SpeedBox = Instance.new("TextBox", ConfigFrame)
+SpeedBox.Size = UDim2.new(0, 190, 0, 28)
+SpeedBox.Position = UDim2.new(0, 15, 0, 188)
+SpeedBox.BackgroundColor3 = Color3.fromRGB(50, 62, 80)
+SpeedBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+SpeedBox.Text = tostring(SoaringSpeed)
+SpeedBox.TextSize = 13
+Instance.new("UICorner", SpeedBox).CornerRadius = UDim.new(0, 6)
+
+SpeedBox.FocusLost:Connect(function()
+	local val = tonumber(SpeedBox.Text)
+	if val and val >= 0 then
+		SoaringSpeed = val
+		SpeedBox.Text = tostring(val)
+	else
+		SpeedBox.Text = tostring(SoaringSpeed)
+	end
+end)
+
+local SeqLabel = Instance.new("TextLabel", ConfigFrame)
+SeqLabel.Size = UDim2.new(0, 190, 0, 20)
+SeqLabel.Position = UDim2.new(0, 15, 0, 225)
+SeqLabel.BackgroundTransparency = 1
+SeqLabel.Text = "Soaring Sequences (0 = Void):"
+SeqLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+SeqLabel.TextSize = 12
+SeqLabel.TextXAlignment = Enum.TextXAlignment.Left
+
+local SeqBox = Instance.new("TextBox", ConfigFrame)
+SeqBox.Size = UDim2.new(0, 190, 0, 28)
+SeqBox.Position = UDim2.new(0, 15, 0, 248)
+SeqBox.BackgroundColor3 = Color3.fromRGB(50, 62, 80)
+SeqBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+SeqBox.Text = tostring(SoaringSequences)
+SeqBox.TextSize = 13
+Instance.new("UICorner", SeqBox).CornerRadius = UDim.new(0, 6)
+
+SeqBox.FocusLost:Connect(function()
+	local val = tonumber(SeqBox.Text)
+	if val and val >= 0 then
+		SoaringSequences = math.floor(val)
+		SeqBox.Text = tostring(SoaringSequences)
+	else
+		SeqBox.Text = tostring(SoaringSequences)
+	end
+end)
+
+local DelayLabel = Instance.new("TextLabel", ConfigFrame)
+DelayLabel.Size = UDim2.new(0, 190, 0, 20)
+DelayLabel.Position = UDim2.new(0, 15, 0, 285)
+DelayLabel.BackgroundTransparency = 1
+DelayLabel.Text = "Void Drop Delay (s):"
+DelayLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+DelayLabel.TextSize = 12
+DelayLabel.TextXAlignment = Enum.TextXAlignment.Left
+
+local DelayBox = Instance.new("TextBox", ConfigFrame)
+DelayBox.Size = UDim2.new(0, 190, 0, 28)
+DelayBox.Position = UDim2.new(0, 15, 0, 308)
+DelayBox.BackgroundColor3 = Color3.fromRGB(50, 62, 80)
+DelayBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+DelayBox.Text = tostring(VoidDropDelay)
+DelayBox.TextSize = 13
+Instance.new("UICorner", DelayBox).CornerRadius = UDim.new(0, 6)
+
+DelayBox.FocusLost:Connect(function()
+	local val = tonumber(DelayBox.Text)
+	if val and val >= 0 then
+		VoidDropDelay = val
+		DelayBox.Text = tostring(val)
+	else
+		DelayBox.Text = tostring(VoidDropDelay)
+	end
+end)
+
+local FireworkLabel = Instance.new("TextLabel", ConfigFrame)
+FireworkLabel.Size = UDim2.new(0, 190, 0, 20)
+FireworkLabel.Position = UDim2.new(0, 15, 0, 345)
+FireworkLabel.BackgroundTransparency = 1
+FireworkLabel.Text = "Firework/Combo Interval (s):"
+FireworkLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+FireworkLabel.TextSize = 12
+FireworkLabel.TextXAlignment = Enum.TextXAlignment.Left
+
+local FireworkBox = Instance.new("TextBox", ConfigFrame)
+FireworkBox.Size = UDim2.new(0, 190, 0, 28)
+FireworkBox.Position = UDim2.new(0, 15, 0, 368)
+FireworkBox.BackgroundColor3 = Color3.fromRGB(50, 62, 80)
+FireworkBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+FireworkBox.Text = tostring(FireworkInterval)
+FireworkBox.TextSize = 13
+Instance.new("UICorner", FireworkBox).CornerRadius = UDim.new(0, 6)
+
+FireworkBox.FocusLost:Connect(function()
+	local val = tonumber(FireworkBox.Text)
+	if val and val >= 0 then
+		FireworkInterval = val
+		FireworkBox.Text = tostring(val)
+	else
+		FireworkBox.Text = tostring(FireworkInterval)
+	end
+end)
+
+local SlamIntervalLabel = Instance.new("TextLabel", ConfigFrame)
+SlamIntervalLabel.Size = UDim2.new(0, 190, 0, 20)
+SlamIntervalLabel.Position = UDim2.new(0, 15, 0, 405)
+SlamIntervalLabel.BackgroundTransparency = 1
+SlamIntervalLabel.Text = "Slam Interval (s):"
+SlamIntervalLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+SlamIntervalLabel.TextSize = 12
+SlamIntervalLabel.TextXAlignment = Enum.TextXAlignment.Left
+
+local SlamIntervalBox = Instance.new("TextBox", ConfigFrame)
+SlamIntervalBox.Size = UDim2.new(0, 190, 0, 28)
+SlamIntervalBox.Position = UDim2.new(0, 15, 0, 428)
+SlamIntervalBox.BackgroundColor3 = Color3.fromRGB(50, 62, 80)
+SlamIntervalBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+SlamIntervalBox.Text = tostring(SlamInterval)
+SlamIntervalBox.TextSize = 13
+Instance.new("UICorner", SlamIntervalBox).CornerRadius = UDim.new(0, 6)
+
+SlamIntervalBox.FocusLost:Connect(function()
+	local val = tonumber(SlamIntervalBox.Text)
+	if val and val >= 0 then
+		SlamInterval = val
+		SlamIntervalBox.Text = tostring(val)
+	else
+		SlamIntervalBox.Text = tostring(SlamInterval)
+	end
+end)
+
+local OffsetLabel = Instance.new("TextLabel", ConfigFrame)
+OffsetLabel.Size = UDim2.new(0, 190, 0, 20)
+OffsetLabel.Position = UDim2.new(0, 15, 0, 465)
+OffsetLabel.BackgroundTransparency = 1
+OffsetLabel.Text = "Slam Offset Distance:"
+OffsetLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+OffsetLabel.TextSize = 12
+OffsetLabel.TextXAlignment = Enum.TextXAlignment.Left
+
+local OffsetBox = Instance.new("TextBox", ConfigFrame)
+OffsetBox.Size = UDim2.new(0, 190, 0, 28)
+OffsetBox.Position = UDim2.new(0, 15, 0, 488)
+OffsetBox.BackgroundColor3 = Color3.fromRGB(50, 62, 80)
+OffsetBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+OffsetBox.Text = tostring(SlamOffsetDistance)
+OffsetBox.TextSize = 13
+Instance.new("UICorner", OffsetBox).CornerRadius = UDim.new(0, 6)
+
+OffsetBox.FocusLost:Connect(function()
+	local val = tonumber(OffsetBox.Text)
+	if val then
+		SlamOffsetDistance = val
+		OffsetBox.Text = tostring(val)
+	else
+		OffsetBox.Text = tostring(SlamOffsetDistance)
+	end
+end)
 
 local TargetBox = Instance.new("TextBox", MainFrame)
 TargetBox.Size = UDim2.new(0, 290, 0, 30)
@@ -1134,29 +1296,33 @@ createButton("Soaring beast", 110, 290, 15, function(target)
 end)
 
 createButton("Rocket", 140, 290, 15, function(target)
-	local textVal = tonumber(VelocityBox.Text)
-	local velVal = (textVal and textVal ~= 0) and textVal or 200
+	local velVal = tonumber(VelocityBox.Text)
 	local timeVal = tonumber(ReturnTimeBox.Text) or 0.5
 	Rocket(target, LocalPlayer, velVal, timeVal)
 end)
 
-createButton("Firework (Lift & Fling)", 170, 290, 15, function(target)
+createButton("Magic Carpet", 170, 290, 15, function(target)
+	local velVal = tonumber(VelocityBox.Text)
+	local timeVal = tonumber(ReturnTimeBox.Text) or 0.5
+	MagicCarpet(target, LocalPlayer, velVal, timeVal)
+end)
+
+createButton("Firework (Lift & Fling)", 200, 290, 15, function(target)
 	Firework(target, LocalPlayer)
 end)
 
-createButton("Combo (Soaring + Lift + Fling)", 200, 290, 15, function(target)
+createButton("Combo (Soaring + Lift + Fling)", 230, 290, 15, function(target)
 	Combo(target, LocalPlayer)
 end)
 
-createButton("Slam (Directional)", 230, 195, 15, function(target)
-	local textVal = tonumber(VelocityBox.Text)
-	local velVal = (textVal and textVal ~= 0) and textVal or 200
+createButton("Slam (Directional)", 260, 195, 15, function(target)
+	local velVal = tonumber(VelocityBox.Text) or 200
 	Slam(target, LocalPlayer, velVal)
 end)
 
 local PickDirBtn = Instance.new("TextButton", MainFrame)
 PickDirBtn.Size = UDim2.new(0, 90, 0, 26)
-PickDirBtn.Position = UDim2.new(0, 215, 0, 230)
+PickDirBtn.Position = UDim2.new(0, 215, 0, 260)
 PickDirBtn.BackgroundColor3 = Color3.fromRGB(80, 100, 130)
 PickDirBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
 PickDirBtn.Text = "🎯 Pick Dir"
@@ -1188,14 +1354,8 @@ PickDirBtn.MouseButton1Click:Connect(function()
 	end)
 end)
 
-createButton("Magic Carpet (90° + Dpad)", 260, 290, 15, function(target)
-	local textVal = tonumber(VelocityBox.Text)
-	local velVal = (textVal and textVal ~= 0) and textVal or 200
-	MagicCarpet(target, LocalPlayer, velVal)
-end)
-
 createButton("Stop Weld (Turn Off)", 290, 290, 15, function()
 	StopWeld()
 end)
 
-notify("Universal Weld", "Script successfully loaded in 4 parts!")
+notify("Universal Weld", "Magic Carpet function added successfully!")
