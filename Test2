@@ -10,7 +10,8 @@ local CurrentWeld = nil
 local OriginalFPDH = workspace.FallenPartsDestroyHeight
 local SoaringAnimTrack = nil
 local TortureAnimTrack = nil
-local ActiveBoxPart = nil      -- Referência para a parte visual da caixa
+local ActiveYellowBox = nil    -- Referência para a caixa amarela (apoio)
+local ActiveGrayBox = nil      -- Referência para a caixa cinza (weld/ativa)
 
 --// Editable Configuration Variables
 local RocketAngle = 0          -- Rocket angle (0 to 360)
@@ -27,9 +28,10 @@ local SelectedSlamTarget = nil -- Target Vector3 for directional Slam
 local TortureHeight = 15       -- Starting height above the victim for Torture
 local TortureDescentTime = 1.5 -- Time in seconds it takes to descend to the victim
 
---// Box Configuration Variables
-local BoxSize = 10             -- Tamanho da caixa (diâmetro/raio em studs)
-local BoxLeadStuds = 2         -- Studs de antecedência para bloquear a saída
+--// Box Configuration Variables (Novos tamanhos padrão solicitados)
+local BoxSize = 25             -- Tamanho padrão da caixa Amarela (apoio)
+local GrayBoxSize = 18         -- Tamanho padrão da caixa Cinza (weld/ativa)
+local BoxLeadStuds = 3         -- Studs de antecedência para bloquear a saída
 
 --// Safe Notification Function
 local function notify(title, text)
@@ -183,9 +185,14 @@ local function StopWeld()
 		PlatformGUI = nil
 	end
 
-	if ActiveBoxPart then
-		ActiveBoxPart:Destroy()
-		ActiveBoxPart = nil
+	if ActiveYellowBox then
+		ActiveYellowBox:Destroy()
+		ActiveYellowBox = nil
+	end
+
+	if ActiveGrayBox then
+		ActiveGrayBox:Destroy()
+		ActiveGrayBox = nil
 	end
 
 	if CurrentWeld then
@@ -1073,31 +1080,43 @@ local function BoxFunc(targetInput, speaker: Player)
 				end
 			end
 
-			local boxCenter = TRoot.Position
-			
-			-- Criação da caixa visual (esfera semitransparente)
-			local boxPart = Instance.new("Part")
-			boxPart.Name = "VisualBox"
-			boxPart.Shape = Enum.PartType.Ball
-			boxPart.Size = Vector3.new(BoxSize, BoxSize, BoxSize)
-			boxPart.Position = boxCenter
-			boxPart.Anchored = true
-			boxPart.CanCollide = false
-			boxPart.Transparency = 0.65
-			boxPart.BrickColor = BrickColor.new("Bright orange")
-			boxPart.Material = Enum.Material.Neon
-			boxPart.Parent = workspace
-			ActiveBoxPart = boxPart
+			local startPos = TRoot.Position
+
+			-- 1. Criação da Caixa Amarela (Apoio fixo no mundo)
+			local yellowBox = Instance.new("Part")
+			yellowBox.Name = "YellowSupportBox"
+			yellowBox.Shape = Enum.PartType.Ball
+			yellowBox.Size = Vector3.new(BoxSize, BoxSize, BoxSize)
+			yellowBox.Position = startPos
+			yellowBox.Anchored = true
+			yellowBox.CanCollide = false
+			yellowBox.Transparency = 0.65
+			yellowBox.BrickColor = BrickColor.new("Bright yellow")
+			yellowBox.Material = Enum.Material.Neon
+			yellowBox.Parent = workspace
+			ActiveYellowBox = yellowBox
+
+			-- 2. Criação da Caixa Cinza (Ativa / Weld na vítima)
+			local grayBox = Instance.new("Part")
+			grayBox.Name = "GrayActiveBox"
+			grayBox.Shape = Enum.PartType.Ball
+			grayBox.Size = Vector3.new(GrayBoxSize, GrayBoxSize, GrayBoxSize)
+			grayBox.Position = startPos
+			grayBox.Anchored = true
+			grayBox.CanCollide = false
+			grayBox.Transparency = 0.7
+			grayBox.BrickColor = BrickColor.new("Medium stone grey")
+			grayBox.Material = Enum.Material.Neon
+			grayBox.Parent = workspace
+			ActiveGrayBox = grayBox
 
 			local boxRunning = true
 
 			CurrentWeld = {
 				Destroy = function()
 					boxRunning = false
-					if boxPart then
-						boxPart:Destroy()
-						ActiveBoxPart = nil
-					end
+					if yellowBox then yellowBox:Destroy(); ActiveYellowBox = nil end
+					if grayBox then grayBox:Destroy(); ActiveGrayBox = nil end
 					if Root then
 						Root.CFrame = initialCFrame
 						Root.AssemblyLinearVelocity = Vector3.zero
@@ -1108,7 +1127,7 @@ local function BoxFunc(targetInput, speaker: Player)
 				end
 			}
 
-			notify("Box", "Box active on " .. TPlayer.Name .. "!")
+			notify("Box", "Yellow & Gray boxes active on " .. TPlayer.Name .. "!")
 
 			local connection
 			connection = RunService.Heartbeat:Connect(function()
@@ -1119,22 +1138,32 @@ local function BoxFunc(targetInput, speaker: Player)
 
 				pcall(function()
 					local victimPos = TRoot.Position
-					local offsetFromCenter = victimPos - boxCenter
-					local distFromCenter = offsetFromCenter.Magnitude
-					local boxRadius = BoxSize / 2
-					local triggerLimit = math.max(boxRadius - BoxLeadStuds, 1)
+					
+					-- A caixa cinza acompanha a vítima suavemente para monitorar os limites
+					grayBox.Position = victimPos
 
-					if distFromCenter >= triggerLimit then
-						local escapeDir = offsetFromCenter.Unit
+					local yellowCenter = yellowBox.Position
+					local grayCenter = grayBox.Position
+
+					-- O player se apoia entre a vítima e a caixa amarela
+					local yellowRadius = BoxSize / 2
+					local grayRadius = GrayBoxSize / 2
+					
+					local offsetFromYellow = victimPos - yellowCenter
+					local distFromYellow = offsetFromYellow.Magnitude
+					local triggerLimit = math.max(yellowRadius - BoxLeadStuds, 1)
+
+					if distFromYellow >= triggerLimit then
+						-- Se a vítima tentar escapar da área da caixa amarela, ativa o weld na direção oposta
+						local escapeDir = offsetFromYellow.Unit
 						local blockingPos
 
-						-- Se a vítima conseguiu furar a barreira e sair da caixa (distância maior que o raio)
-						if distFromCenter > boxRadius then
-							-- Posiciona o player na direção OPSTA do escape (puxando-a de volta para dentro)
-							blockingPos = boxCenter + (escapeDir * (boxRadius - 1))
+						if distFromYellow > yellowRadius then
+							-- Força oposta de puxada de volta para dentro
+							blockingPos = yellowCenter + (escapeDir * (yellowRadius - 1))
 						else
-							-- Se estiver na borda (zona de antecedência), bloqueia exatamente no caminho dela
-							blockingPos = boxCenter + (escapeDir * distFromCenter)
+							-- Posição de bloqueio na borda
+							blockingPos = yellowCenter + (escapeDir * distFromYellow)
 						end
 
 						Root.CFrame = CFrame.new(blockingPos + Vector3.new(0, 2, 0), victimPos)
@@ -1147,8 +1176,9 @@ local function BoxFunc(targetInput, speaker: Player)
 							sethiddenproperty(Root, "PhysicsRepRootRef", InstanceHandle.new(TRoot))
 						end
 					else
-						-- Se estiver segura dentro da caixa, aguarda próximo ao centro superior
-						Root.CFrame = CFrame.new(boxCenter + Vector3.new(0, 4, 0))
+						-- Se estiver segura no apoio, fica posicionada entre a caixa amarela e a cinza
+						local midPos = yellowCenter:Lerp(grayCenter, 0.5)
+						Root.CFrame = CFrame.new(midPos + Vector3.new(0, 3, 0))
 						Root.AssemblyLinearVelocity = Vector3.zero
 						Root.AssemblyAngularVelocity = Vector3.zero
 						Root.RotVelocity = Vector3.zero
@@ -1235,7 +1265,7 @@ ConfigFrame.Position = UDim2.new(0.4, 330, 0.3, 0)
 ConfigFrame.BackgroundColor3 = Color3.fromRGB(245, 130, 32)
 ConfigFrame.BorderSizePixel = 0
 ConfigFrame.Visible = false
-ConfigFrame.CanvasSize = UDim2.new(0, 0, 0, 800)
+ConfigFrame.CanvasSize = UDim2.new(0, 0, 0, 850)
 ConfigFrame.ScrollBarThickness = 6
 Instance.new("UICorner", ConfigFrame).CornerRadius = UDim.new(0, 8)
 
@@ -1345,7 +1375,7 @@ FEATURES:
 • Combo: Soars, lifts, and executes fling explosion.
 • Slam: Directional push using 🎯 Pick Dir tool.
 • Torture: Descends slowly from high above and stuns.
-• Box: Traps victim in a visible boundary box with anti-escape push.
+• Box: Traps victim using Yellow Support Box and Gray Active Weld Box.
 • Stop Weld: Releases active welds.]]
 --// PART 5: Configuration Elements, Action Buttons & Initialization
 local AngleLabel = Instance.new("TextLabel", ConfigFrame)
@@ -1651,7 +1681,7 @@ local BoxSizeLabel = Instance.new("TextLabel", ConfigFrame)
 BoxSizeLabel.Size = UDim2.new(0, 190, 0, 20)
 BoxSizeLabel.Position = UDim2.new(0, 15, 0, 645)
 BoxSizeLabel.BackgroundTransparency = 1
-BoxSizeLabel.Text = "Box Size:"
+BoxSizeLabel.Text = "Yellow Box Size (Support):"
 BoxSizeLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
 BoxSizeLabel.TextSize = 12
 BoxSizeLabel.TextXAlignment = Enum.TextXAlignment.Left
@@ -1672,6 +1702,34 @@ BoxSizeBox.FocusLost:Connect(function()
 		BoxSizeBox.Text = tostring(val)
 	else
 		BoxSizeBox.Text = tostring(BoxSize)
+	end
+end)
+
+local GrayBoxLabel = Instance.new("TextLabel", ConfigFrame)
+GrayBoxLabel.Size = UDim2.new(0, 190, 0, 20)
+GrayBoxLabel.Position = UDim2.new(0, 15, 0, 705)
+GrayBoxLabel.BackgroundTransparency = 1
+GrayBoxLabel.Text = "Gray Box Size (Weld):"
+GrayBoxLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+GrayBoxLabel.TextSize = 12
+GrayBoxLabel.TextXAlignment = Enum.TextXAlignment.Left
+
+local GrayBoxSizeBox = Instance.new("TextBox", ConfigFrame)
+GrayBoxSizeBox.Size = UDim2.new(0, 190, 0, 28)
+GrayBoxSizeBox.Position = UDim2.new(0, 15, 0, 728)
+GrayBoxSizeBox.BackgroundColor3 = Color3.fromRGB(220, 110, 20)
+GrayBoxSizeBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+GrayBoxSizeBox.Text = tostring(GrayBoxSize)
+GrayBoxSizeBox.TextSize = 13
+Instance.new("UICorner", GrayBoxSizeBox).CornerRadius = UDim.new(0, 6)
+
+GrayBoxSizeBox.FocusLost:Connect(function()
+	local val = tonumber(GrayBoxSizeBox.Text)
+	if val and val > 0 then
+		GrayBoxSize = val
+		GrayBoxSizeBox.Text = tostring(val)
+	else
+		GrayBoxSizeBox.Text = tostring(GrayBoxSize)
 	end
 end)
 
@@ -1896,7 +1954,7 @@ PickDirBtn.MouseButton1Click:Connect(function()
 			if result then
 				SelectedSlamTarget = result.Position
 				notify("Slam Direction", "Direction locked successfully!")
-			   else
+			else
 				SelectedSlamTarget = camera.Focus.Position
 				notify("Slam Direction", "Direction set to camera focus!")
 			end
