@@ -894,7 +894,7 @@ local function Slam(targetInput, speaker: Player, customVelocity)
 		end)
 	end)
 end
---// PART 4: Graphical Interface, Draggable & Scrollable Config Menu & UI Buttons
+--// PART 4: Windows & Info Panel Setup
 local UserInputService = game:GetService("UserInputService")
 local LocalPlayer = game:GetService("Players").LocalPlayer
 local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
@@ -906,13 +906,13 @@ ScreenGui.ResetOnSpawn = false
 local MainFrame = Instance.new("Frame", ScreenGui)
 MainFrame.Size = UDim2.new(0, 320, 0, 355)
 MainFrame.Position = UDim2.new(0.4, 0, 0.3, 0)
-MainFrame.BackgroundColor3 = Color3.fromRGB(35, 42, 54)
+MainFrame.BackgroundColor3 = Color3.fromRGB(245, 130, 32) -- Laranja
 MainFrame.BorderSizePixel = 0
 Instance.new("UICorner", MainFrame).CornerRadius = UDim.new(0, 8)
 
 local TopBar = Instance.new("TextLabel", MainFrame)
 TopBar.Size = UDim2.new(1, 0, 0, 35)
-TopBar.BackgroundColor3 = Color3.fromRGB(45, 55, 72)
+TopBar.BackgroundColor3 = Color3.fromRGB(220, 110, 20) -- Tom de laranja escuro para a barra
 TopBar.Text = "  Universal Weld & Rocket Tool"
 TopBar.TextColor3 = Color3.fromRGB(255, 255, 255)
 TopBar.TextSize = 15
@@ -943,44 +943,10 @@ UserInputService.InputChanged:Connect(function(input)
 	end
 end)
 
--- Botão para esconder/mostrar completamente a interface (mantendo apenas o botão + visível)
-local MinimizeBtn = Instance.new("TextButton", TopBar)
-MinimizeBtn.Size = UDim2.new(0, 25, 0, 25)
-MinimizeBtn.Position = UDim2.new(1, -30, 0, 5)
-MinimizeBtn.BackgroundColor3 = Color3.fromRGB(66, 83, 103)
-MinimizeBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-MinimizeBtn.Text = "-"
-MinimizeBtn.TextSize = 14
-Instance.new("UICorner", MinimizeBtn).CornerRadius = UDim.new(0, 5)
-
-local isHidden = false
-MinimizeBtn.MouseButton1Click:Connect(function()
-	isHidden = not isHidden
-	if isHidden then
-		MinimizeBtn.Text = "+"
-		MainFrame.BackgroundTransparency = 1
-		TopBar.Visible = false
-		for _, child in ipairs(MainFrame:GetChildren()) do
-			if child ~= TopBar and child ~= MinimizeBtn then
-				child.Visible = false
-			end
-		end
-		ConfigFrame.Visible = false
-		InfoFrame.Visible = false
-	else
-		MinimizeBtn.Text = "-"
-		MainFrame.BackgroundTransparency = 0
-		TopBar.Visible = true
-		for _, child in ipairs(MainFrame:GetChildren()) do
-			child.Visible = true
-		end
-	end
-end)
-
 local ConfigToggleBtn = Instance.new("TextButton", TopBar)
 ConfigToggleBtn.Size = UDim2.new(0, 60, 0, 25)
-ConfigToggleBtn.Position = UDim2.new(1, -155, 0, 5)
-ConfigToggleBtn.BackgroundColor3 = Color3.fromRGB(66, 83, 103)
+ConfigToggleBtn.Position = UDim2.new(1, -125, 0, 5)
+ConfigToggleBtn.BackgroundColor3 = Color3.fromRGB(190, 90, 15)
 ConfigToggleBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
 ConfigToggleBtn.Text = "⚙️ Config"
 ConfigToggleBtn.TextSize = 11
@@ -988,8 +954,8 @@ Instance.new("UICorner", ConfigToggleBtn).CornerRadius = UDim.new(0, 5)
 
 local InfoToggleBtn = Instance.new("TextButton", TopBar)
 InfoToggleBtn.Size = UDim2.new(0, 50, 0, 25)
-InfoToggleBtn.Position = UDim2.new(1, -90, 0, 5)
-InfoToggleBtn.BackgroundColor3 = Color3.fromRGB(66, 83, 103)
+InfoToggleBtn.Position = UDim2.new(1, -60, 0, 5)
+InfoToggleBtn.BackgroundColor3 = Color3.fromRGB(190, 90, 15)
 InfoToggleBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
 InfoToggleBtn.Text = "ℹ️ Info"
 InfoToggleBtn.TextSize = 11
@@ -998,7 +964,7 @@ Instance.new("UICorner", InfoToggleBtn).CornerRadius = UDim.new(0, 5)
 local ConfigFrame = Instance.new("ScrollingFrame", ScreenGui)
 ConfigFrame.Size = UDim2.new(0, 220, 0, 420)
 ConfigFrame.Position = UDim2.new(0.4, 330, 0.3, 0)
-ConfigFrame.BackgroundColor3 = Color3.fromRGB(35, 42, 54)
+ConfigFrame.BackgroundColor3 = Color3.fromRGB(245, 130, 32)
 ConfigFrame.BorderSizePixel = 0
 ConfigFrame.Visible = false
 ConfigFrame.CanvasSize = UDim2.new(0, 0, 0, 620)
@@ -1007,7 +973,7 @@ Instance.new("UICorner", ConfigFrame).CornerRadius = UDim.new(0, 8)
 
 local ConfigTitle = Instance.new("TextLabel", ConfigFrame)
 ConfigTitle.Size = UDim2.new(1, 0, 0, 35)
-ConfigTitle.BackgroundColor3 = Color3.fromRGB(45, 55, 72)
+ConfigTitle.BackgroundColor3 = Color3.fromRGB(220, 110, 20)
 ConfigTitle.Text = "  Configuration"
 ConfigTitle.TextColor3 = Color3.fromRGB(255, 255, 255)
 ConfigTitle.TextSize = 14
@@ -1042,18 +1008,17 @@ ConfigToggleBtn.MouseButton1Click:Connect(function()
 	ConfigFrame.Visible = not ConfigFrame.Visible
 end)
 
--- Painel de Informação interativo e móvel (Draggable)
 local InfoFrame = Instance.new("Frame", ScreenGui)
 InfoFrame.Size = UDim2.new(0, 260, 0, 345)
 InfoFrame.Position = UDim2.new(0.4, -270, 0.3, 0)
-InfoFrame.BackgroundColor3 = Color3.fromRGB(35, 42, 54)
+InfoFrame.BackgroundColor3 = Color3.fromRGB(245, 130, 32)
 InfoFrame.BorderSizePixel = 0
 InfoFrame.Visible = false
 Instance.new("UICorner", InfoFrame).CornerRadius = UDim.new(0, 8)
 
 local InfoTitle = Instance.new("TextLabel", InfoFrame)
 InfoTitle.Size = UDim2.new(1, 0, 0, 35)
-InfoTitle.BackgroundColor3 = Color3.fromRGB(45, 55, 72)
+InfoTitle.BackgroundColor3 = Color3.fromRGB(220, 110, 20)
 InfoTitle.Text = "  Information Guide"
 InfoTitle.TextColor3 = Color3.fromRGB(255, 255, 255)
 InfoTitle.TextSize = 14
@@ -1092,7 +1057,7 @@ local InfoText = Instance.new("TextLabel", InfoFrame)
 InfoText.Size = UDim2.new(0, 230, 0, 290)
 InfoText.Position = UDim2.new(0, 15, 0, 45)
 InfoText.BackgroundTransparency = 1
-InfoText.TextColor3 = Color3.fromRGB(220, 220, 220)
+InfoText.TextColor3 = Color3.fromRGB(255, 255, 255)
 InfoText.TextSize = 8
 InfoText.TextXAlignment = Enum.TextXAlignment.Left
 InfoText.TextYAlignment = Enum.TextYAlignment.Top
@@ -1112,20 +1077,20 @@ FEATURES:
 • Combo: Soars, lifts, and executes fling explosion.
 • Slam: Directional push using 🎯 Pick Dir tool.
 • Stop Weld: Releases active welds.]]
-
+--// PART 5: Configuration Elements, UI Buttons & Initialization
 local AngleLabel = Instance.new("TextLabel", ConfigFrame)
 AngleLabel.Size = UDim2.new(0, 190, 0, 20)
 AngleLabel.Position = UDim2.new(0, 15, 0, 45)
 AngleLabel.BackgroundTransparency = 1
 AngleLabel.Text = "Rocket Angle:"
-AngleLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+AngleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
 AngleLabel.TextSize = 12
 AngleLabel.TextXAlignment = Enum.TextXAlignment.Left
 
 local AngleBox = Instance.new("TextBox", ConfigFrame)
 AngleBox.Size = UDim2.new(0, 190, 0, 28)
 AngleBox.Position = UDim2.new(0, 15, 0, 68)
-AngleBox.BackgroundColor3 = Color3.fromRGB(50, 62, 80)
+AngleBox.BackgroundColor3 = Color3.fromRGB(220, 110, 20)
 AngleBox.TextColor3 = Color3.fromRGB(255, 255, 255)
 AngleBox.Text = tostring(RocketAngle)
 AngleBox.TextSize = 13
@@ -1147,14 +1112,14 @@ HeightLabel.Size = UDim2.new(0, 190, 0, 20)
 HeightLabel.Position = UDim2.new(0, 15, 0, 105)
 HeightLabel.BackgroundTransparency = 1
 HeightLabel.Text = "Rocket Base Height:"
-HeightLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+HeightLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
 HeightLabel.TextSize = 12
 HeightLabel.TextXAlignment = Enum.TextXAlignment.Left
 
 local HeightDisplay = Instance.new("TextLabel", ConfigFrame)
 HeightDisplay.Size = UDim2.new(0, 110, 0, 28)
 HeightDisplay.Position = UDim2.new(0, 15, 0, 128)
-HeightDisplay.BackgroundColor3 = Color3.fromRGB(50, 62, 80)
+HeightDisplay.BackgroundColor3 = Color3.fromRGB(220, 110, 20)
 HeightDisplay.TextColor3 = Color3.fromRGB(255, 255, 255)
 HeightDisplay.Text = string.format("%.1f", RocketBaseHeight)
 HeightDisplay.TextSize = 13
@@ -1163,7 +1128,7 @@ Instance.new("UICorner", HeightDisplay).CornerRadius = UDim.new(0, 6)
 local MinusBtn = Instance.new("TextButton", ConfigFrame)
 MinusBtn.Size = UDim2.new(0, 36, 0, 28)
 MinusBtn.Position = UDim2.new(0, 130, 0, 128)
-MinusBtn.BackgroundColor3 = Color3.fromRGB(66, 83, 103)
+MinusBtn.BackgroundColor3 = Color3.fromRGB(190, 90, 15)
 MinusBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
 MinusBtn.Text = "-"
 MinusBtn.TextSize = 16
@@ -1177,7 +1142,7 @@ end)
 local PlusBtn = Instance.new("TextButton", ConfigFrame)
 PlusBtn.Size = UDim2.new(0, 36, 0, 28)
 PlusBtn.Position = UDim2.new(0, 169, 0, 128)
-PlusBtn.BackgroundColor3 = Color3.fromRGB(66, 83, 103)
+PlusBtn.BackgroundColor3 = Color3.fromRGB(190, 90, 15)
 PlusBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
 PlusBtn.Text = "+"
 PlusBtn.TextSize = 16
@@ -1193,14 +1158,14 @@ SpeedLabel.Size = UDim2.new(0, 190, 0, 20)
 SpeedLabel.Position = UDim2.new(0, 15, 0, 165)
 SpeedLabel.BackgroundTransparency = 1
 SpeedLabel.Text = "Soaring Speed:"
-SpeedLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+SpeedLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
 SpeedLabel.TextSize = 12
 SpeedLabel.TextXAlignment = Enum.TextXAlignment.Left
 
 local SpeedBox = Instance.new("TextBox", ConfigFrame)
 SpeedBox.Size = UDim2.new(0, 190, 0, 28)
 SpeedBox.Position = UDim2.new(0, 15, 0, 188)
-SpeedBox.BackgroundColor3 = Color3.fromRGB(50, 62, 80)
+SpeedBox.BackgroundColor3 = Color3.fromRGB(220, 110, 20)
 SpeedBox.TextColor3 = Color3.fromRGB(255, 255, 255)
 SpeedBox.Text = tostring(SoaringSpeed)
 SpeedBox.TextSize = 13
@@ -1221,14 +1186,14 @@ SeqLabel.Size = UDim2.new(0, 190, 0, 20)
 SeqLabel.Position = UDim2.new(0, 15, 0, 225)
 SeqLabel.BackgroundTransparency = 1
 SeqLabel.Text = "Soaring Sequences:"
-SeqLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+SeqLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
 SeqLabel.TextSize = 12
 SeqLabel.TextXAlignment = Enum.TextXAlignment.Left
 
 local SeqBox = Instance.new("TextBox", ConfigFrame)
 SeqBox.Size = UDim2.new(0, 190, 0, 28)
 SeqBox.Position = UDim2.new(0, 15, 0, 248)
-SeqBox.BackgroundColor3 = Color3.fromRGB(50, 62, 80)
+SeqBox.BackgroundColor3 = Color3.fromRGB(220, 110, 20)
 SeqBox.TextColor3 = Color3.fromRGB(255, 255, 255)
 SeqBox.Text = tostring(SoaringSequences)
 SeqBox.TextSize = 13
@@ -1249,14 +1214,14 @@ DelayLabel.Size = UDim2.new(0, 190, 0, 20)
 DelayLabel.Position = UDim2.new(0, 15, 0, 285)
 DelayLabel.BackgroundTransparency = 1
 DelayLabel.Text = "Void Drop Delay:"
-DelayLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+DelayLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
 DelayLabel.TextSize = 12
 DelayLabel.TextXAlignment = Enum.TextXAlignment.Left
 
 local DelayBox = Instance.new("TextBox", ConfigFrame)
 DelayBox.Size = UDim2.new(0, 190, 0, 28)
 DelayBox.Position = UDim2.new(0, 15, 0, 308)
-DelayBox.BackgroundColor3 = Color3.fromRGB(50, 62, 80)
+DelayBox.BackgroundColor3 = Color3.fromRGB(220, 110, 20)
 DelayBox.TextColor3 = Color3.fromRGB(255, 255, 255)
 DelayBox.Text = tostring(VoidDropDelay)
 DelayBox.TextSize = 13
@@ -1277,14 +1242,14 @@ FireworkLabel.Size = UDim2.new(0, 190, 0, 20)
 FireworkLabel.Position = UDim2.new(0, 15, 0, 345)
 FireworkLabel.BackgroundTransparency = 1
 FireworkLabel.Text = "Firework/Combo Interval:"
-FireworkLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+FireworkLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
 FireworkLabel.TextSize = 12
 FireworkLabel.TextXAlignment = Enum.TextXAlignment.Left
 
 local FireworkBox = Instance.new("TextBox", ConfigFrame)
 FireworkBox.Size = UDim2.new(0, 190, 0, 28)
 FireworkBox.Position = UDim2.new(0, 15, 0, 368)
-FireworkBox.BackgroundColor3 = Color3.fromRGB(50, 62, 80)
+FireworkBox.BackgroundColor3 = Color3.fromRGB(220, 110, 20)
 FireworkBox.TextColor3 = Color3.fromRGB(255, 255, 255)
 FireworkBox.Text = tostring(FireworkInterval)
 FireworkBox.TextSize = 13
@@ -1305,14 +1270,14 @@ SlamIntervalLabel.Size = UDim2.new(0, 190, 0, 20)
 SlamIntervalLabel.Position = UDim2.new(0, 15, 0, 405)
 SlamIntervalLabel.BackgroundTransparency = 1
 SlamIntervalLabel.Text = "Slam Interval:"
-SlamIntervalLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+SlamIntervalLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
 SlamIntervalLabel.TextSize = 12
 SlamIntervalLabel.TextXAlignment = Enum.TextXAlignment.Left
 
 local SlamIntervalBox = Instance.new("TextBox", ConfigFrame)
 SlamIntervalBox.Size = UDim2.new(0, 190, 0, 28)
 SlamIntervalBox.Position = UDim2.new(0, 15, 0, 428)
-SlamIntervalBox.BackgroundColor3 = Color3.fromRGB(50, 62, 80)
+SlamIntervalBox.BackgroundColor3 = Color3.fromRGB(220, 110, 20)
 SlamIntervalBox.TextColor3 = Color3.fromRGB(255, 255, 255)
 SlamIntervalBox.Text = tostring(SlamInterval)
 SlamIntervalBox.TextSize = 13
@@ -1333,14 +1298,14 @@ OffsetLabel.Size = UDim2.new(0, 190, 0, 20)
 OffsetLabel.Position = UDim2.new(0, 15, 0, 465)
 OffsetLabel.BackgroundTransparency = 1
 OffsetLabel.Text = "Slam Offset Distance:"
-OffsetLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+OffsetLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
 OffsetLabel.TextSize = 12
 OffsetLabel.TextXAlignment = Enum.TextXAlignment.Left
 
 local OffsetBox = Instance.new("TextBox", ConfigFrame)
 OffsetBox.Size = UDim2.new(0, 190, 0, 28)
 OffsetBox.Position = UDim2.new(0, 15, 0, 488)
-OffsetBox.BackgroundColor3 = Color3.fromRGB(50, 62, 80)
+OffsetBox.BackgroundColor3 = Color3.fromRGB(220, 110, 20)
 OffsetBox.TextColor3 = Color3.fromRGB(255, 255, 255)
 OffsetBox.Text = tostring(SlamOffsetDistance)
 OffsetBox.TextSize = 13
@@ -1359,7 +1324,7 @@ end)
 local TargetBox = Instance.new("TextBox", MainFrame)
 TargetBox.Size = UDim2.new(0, 215, 0, 30)
 TargetBox.Position = UDim2.new(0, 15, 0, 42)
-TargetBox.BackgroundColor3 = Color3.fromRGB(50, 62, 80)
+TargetBox.BackgroundColor3 = Color3.fromRGB(220, 110, 20)
 TargetBox.TextColor3 = Color3.fromRGB(255, 255, 255)
 TargetBox.PlaceholderText = "Target: Name, nearest..."
 TargetBox.Text = ""
@@ -1369,7 +1334,7 @@ Instance.new("UICorner", TargetBox).CornerRadius = UDim.new(0, 6)
 local GiveToolBtn = Instance.new("TextButton", MainFrame)
 GiveToolBtn.Size = UDim2.new(0, 65, 0, 30)
 GiveToolBtn.Position = UDim2.new(0, 240, 0, 42)
-GiveToolBtn.BackgroundColor3 = Color3.fromRGB(80, 100, 130)
+GiveToolBtn.BackgroundColor3 = Color3.fromRGB(190, 90, 15)
 GiveToolBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
 GiveToolBtn.Text = "🎯 Tool"
 GiveToolBtn.TextSize = 12
@@ -1411,7 +1376,7 @@ end)
 local VelocityBox = Instance.new("TextBox", MainFrame)
 VelocityBox.Size = UDim2.new(0, 140, 0, 26)
 VelocityBox.Position = UDim2.new(0, 15, 0, 77)
-VelocityBox.BackgroundColor3 = Color3.fromRGB(50, 62, 80)
+VelocityBox.BackgroundColor3 = Color3.fromRGB(220, 110, 20)
 VelocityBox.TextColor3 = Color3.fromRGB(255, 255, 255)
 VelocityBox.PlaceholderText = "Velocity"
 VelocityBox.Text = "200"
@@ -1421,7 +1386,7 @@ Instance.new("UICorner", VelocityBox).CornerRadius = UDim.new(0, 6)
 local ReturnTimeBox = Instance.new("TextBox", MainFrame)
 ReturnTimeBox.Size = UDim2.new(0, 140, 0, 26)
 ReturnTimeBox.Position = UDim2.new(0, 165, 0, 77)
-ReturnTimeBox.BackgroundColor3 = Color3.fromRGB(50, 62, 80)
+ReturnTimeBox.BackgroundColor3 = Color3.fromRGB(220, 110, 20)
 ReturnTimeBox.TextColor3 = Color3.fromRGB(255, 255, 255)
 ReturnTimeBox.PlaceholderText = "Time"
 ReturnTimeBox.Text = "0.5"
@@ -1432,7 +1397,7 @@ local function createButton(text, posY, width, posX, callback)
 	local btn = Instance.new("TextButton", MainFrame)
 	btn.Size = UDim2.new(0, width or 290, 0, 28)
 	btn.Position = UDim2.new(0, posX or 15, 0, posY)
-	btn.BackgroundColor3 = Color3.fromRGB(66, 83, 103)
+	btn.BackgroundColor3 = Color3.fromRGB(190, 90, 15)
 	btn.TextColor3 = Color3.fromRGB(255, 255, 255)
 	btn.Text = text
 	btn.TextSize = 13
@@ -1451,7 +1416,7 @@ end)
 local RocketBtn = Instance.new("TextButton", MainFrame)
 RocketBtn.Size = UDim2.new(0, 95, 0, 28)
 RocketBtn.Position = UDim2.new(0, 15, 0, 143)
-RocketBtn.BackgroundColor3 = Color3.fromRGB(66, 83, 103)
+RocketBtn.BackgroundColor3 = Color3.fromRGB(190, 90, 15)
 RocketBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
 RocketBtn.Text = "Rocket"
 RocketBtn.TextSize = 13
@@ -1460,7 +1425,7 @@ Instance.new("UICorner", RocketBtn).CornerRadius = UDim.new(0, 6)
 local ModeBtn = Instance.new("TextButton", MainFrame)
 ModeBtn.Size = UDim2.new(0, 95, 0, 28)
 ModeBtn.Position = UDim2.new(0, 112, 0, 143)
-ModeBtn.BackgroundColor3 = Color3.fromRGB(80, 100, 130)
+ModeBtn.BackgroundColor3 = Color3.fromRGB(170, 75, 10)
 ModeBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
 ModeBtn.Text = "Mode Rocket"
 ModeBtn.TextSize = 10
@@ -1469,7 +1434,7 @@ Instance.new("UICorner", ModeBtn).CornerRadius = UDim.new(0, 6)
 local SlamDropBtn = Instance.new("TextButton", MainFrame)
 SlamDropBtn.Size = UDim2.new(0, 95, 0, 28)
 SlamDropBtn.Position = UDim2.new(0, 210, 0, 143)
-SlamDropBtn.BackgroundColor3 = Color3.fromRGB(80, 100, 130)
+SlamDropBtn.BackgroundColor3 = Color3.fromRGB(170, 75, 10)
 SlamDropBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
 SlamDropBtn.Text = "Slam-drop"
 SlamDropBtn.TextSize = 11
@@ -1506,7 +1471,7 @@ RocketBtn.MouseButton1Click:Connect(function()
 			local upBtn = Instance.new("TextButton", PlatformGUI)
 			upBtn.Size = UDim2.new(0, 90, 0, 35)
 			upBtn.Position = UDim2.new(0.4, -100, 0.75, 0)
-			upBtn.BackgroundColor3 = Color3.fromRGB(66, 83, 103)
+			upBtn.BackgroundColor3 = Color3.fromRGB(245, 130, 32)
 			upBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
 			upBtn.Text = "Up"
 			upBtn.TextSize = 12
@@ -1515,7 +1480,7 @@ RocketBtn.MouseButton1Click:Connect(function()
 			local downBtn = Instance.new("TextButton", PlatformGUI)
 			downBtn.Size = UDim2.new(0, 90, 0, 35)
 			downBtn.Position = UDim2.new(0.4, 10, 0.75, 0)
-			downBtn.BackgroundColor3 = Color3.fromRGB(66, 83, 103)
+			downBtn.BackgroundColor3 = Color3.fromRGB(245, 130, 32)
 			downBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
 			downBtn.Text = "Down"
 			downBtn.TextSize = 12
@@ -1554,7 +1519,7 @@ end)
 local PickDirBtn = Instance.new("TextButton", MainFrame)
 PickDirBtn.Size = UDim2.new(0, 90, 0, 28)
 PickDirBtn.Position = UDim2.new(0, 215, 0, 242)
-PickDirBtn.BackgroundColor3 = Color3.fromRGB(80, 100, 130)
+PickDirBtn.BackgroundColor3 = Color3.fromRGB(170, 75, 10)
 PickDirBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
 PickDirBtn.Text = "Pick Dir"
 PickDirBtn.TextSize = 12
@@ -1589,4 +1554,4 @@ createButton("Stop Weld", 275, 290, 15, function()
 	StopWeld()
 end)
 
-notify("Universal Weld", "Script updated successfully!")
+notify("Universal weld script", "Made by Flimflam and Gemini")
