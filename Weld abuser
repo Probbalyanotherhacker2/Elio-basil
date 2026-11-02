@@ -1,4 +1,4 @@
---// PART 1: Services, Global Variables, Key Tracking & Target Resolution
+--// PART 1: Services, Global Variables & Target Resolution
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
@@ -11,45 +11,15 @@ local OriginalFPDH = workspace.FallenPartsDestroyHeight
 local SoaringAnimTrack = nil
 
 --// Editable Configuration Variables
-local RocketAngle = 0             -- Rocket angle (0 to 360)
-local RocketBaseHeight = -3.5     -- Rocket base height
-local MagicCarpetHeight = 5.0     -- Magic Carpet height offset
-local SoaringSpeed = 0.08         -- Soaring teleport delay (seconds)
-local SoaringSequences = 3        -- Soaring telemetry cycles (0 skips directly to void)
-local VoidDropDelay = 4           -- Final Void Drop hold delay (seconds)
-local FireworkInterval = 2        -- Firework/Combo hold interval (seconds)
-local SlamInterval = 0.2          -- Slam hold interval (default 0.2s, editable)
-local SlamOffsetDistance = 3      -- Distance/offset from victim for Slam (editable)
-local SelectedSlamTarget = nil    -- Target Vector3 for directional Slam
-local SelectedMagicTarget = nil   -- Target Vector3 for directional Magic Carpet velocity
-
---// Key State Tracker for Magic Carpet Dpad / WASD + E/Q
-local activeKeys = {
-	W = false, A = false, S = false, D = false,
-	E = false, Q = false
-}
-
-UserInputService.InputBegan:Connect(function(input, gameProcessed)
-	if gameProcessed then return end
-	if UserInputService:GetFocusedTextBox() then return end
-	local key = input.KeyCode
-	if key == Enum.KeyCode.W or key == Enum.KeyCode.Up then activeKeys.W = true end
-	if key == Enum.KeyCode.S or key == Enum.KeyCode.Down then activeKeys.S = true end
-	if key == Enum.KeyCode.A or key == Enum.KeyCode.Left then activeKeys.A = true end
-	if key == Enum.KeyCode.D or key == Enum.KeyCode.Right then activeKeys.D = true end
-	if key == Enum.KeyCode.E then activeKeys.E = true end
-	if key == Enum.KeyCode.Q then activeKeys.Q = true end
-end)
-
-UserInputService.InputEnded:Connect(function(input)
-	local key = input.KeyCode
-	if key == Enum.KeyCode.W or key == Enum.KeyCode.Up then activeKeys.W = false end
-	if key == Enum.KeyCode.S or key == Enum.KeyCode.Down then activeKeys.S = false end
-	if key == Enum.KeyCode.A or key == Enum.KeyCode.Left then activeKeys.A = false end
-	if key == Enum.KeyCode.D or key == Enum.KeyCode.Right then activeKeys.D = false end
-	if key == Enum.KeyCode.E then activeKeys.E = false end
-	if key == Enum.KeyCode.Q then activeKeys.Q = false end
-end)
+local RocketAngle = 0          -- Rocket angle (0 to 360)
+local RocketBaseHeight = -3.5  -- Rocket base height
+local SoaringSpeed = 0.08      -- Soaring teleport delay (seconds)
+local SoaringSequences = 3     -- Soaring telemetry cycles (0 skips directly to void)
+local VoidDropDelay = 4        -- Final Void Drop hold delay (seconds)
+local FireworkInterval = 2     -- Firework/Combo hold interval (seconds)
+local SlamInterval = 0.2       -- Slam hold interval (default 0.2s, editable)
+local SlamOffsetDistance = 3   -- Distance/offset from victim for Slam (editable)
+local SelectedSlamTarget = nil -- Target Vector3 for directional Slam
 
 --// Safe Notification Function
 local function notify(title, text)
@@ -181,7 +151,7 @@ local function StopWeld()
 	workspace.FallenPartsDestroyHeight = OriginalFPDH
 	notify("Welder", "Actions stopped and player released!")
 end
---// PART 2: SoaringBeast, Rocket & Magic Carpet Functions
+--// PART 2: SoaringBeast & Rocket Functions
 
 local function SoaringBeast(targetInput, speaker: Player)
 	if not targetInput or targetInput == "" then return notify('Player Required', 'No target provided for Soaring beast!') end
@@ -268,6 +238,7 @@ local function SoaringBeast(targetInput, speaker: Player)
 					if sethiddenproperty then
 						pcall(function()
 							sethiddenproperty(Root, "PhysicsRepRootPart", TRoot)
+							sethiddenproperty(Root, "PhysicsRepRootRef", InstanceHandle.new(TRoot))
 						end)
 					end
 				end)
@@ -349,6 +320,7 @@ local function Rocket(targetInput, speaker: Player, customVelocity, customTime)
 				if sethiddenproperty then
 					pcall(function()
 						sethiddenproperty(Root, "PhysicsRepRootPart", TRoot)
+						sethiddenproperty(Root, "PhysicsRepRootRef", InstanceHandle.new(TRoot))
 					end)
 				end
 			end)
@@ -404,141 +376,6 @@ local function Rocket(targetInput, speaker: Player, customVelocity, customTime)
 		end)
 	end)
 end
-
-local function MagicCarpet(targetInput, speaker: Player, customVelocity, customTime)
-	if not targetInput or targetInput == "" then return notify('Player Required', 'No target provided for Magic Carpet!') end
-
-	resolveTarget(targetInput, speaker, function(v)
-		local TPlayer = Players:FindFirstChild(v)
-		if not TPlayer or not TPlayer.Character or TPlayer == speaker then return end
-
-		StopWeld()
-
-		local TCharacter = TPlayer.Character
-		local TRoot = TCharacter:WaitForChild("HumanoidRootPart", 2) or TCharacter:FindFirstChild("Torso") or TCharacter:FindFirstChild("UpperTorso")
-		if not TRoot then return end
-
-		local character = speaker.Character
-		if not character then return end
-		local Root = character:WaitForChild("HumanoidRootPart", 2)
-		if not Root then return end
-
-		task.spawn(function()
-			local initialCFrame = Root.CFrame
-			workspace.FallenPartsDestroyHeight = 0/0
-
-			for _, part in pairs(character:GetDescendants()) do
-				if part:IsA("BasePart") then
-					part.CanCollide = false
-					part.Massless = true
-				end
-			end
-
-			local magicRunning = true
-			local connection
-			connection = RunService.Heartbeat:Connect(function()
-				if not magicRunning or not character.Parent or not TRoot.Parent then
-					if connection then connection:Disconnect() end
-					return
-				end
-				-- Maintains position at MagicCarpetHeight above target
-				Root.CFrame = TRoot.CFrame * CFrame.new(0, MagicCarpetHeight, 0) * CFrame.Angles(math.rad(RocketAngle), 0, 0)
-				
-				local velPower = (customVelocity and customVelocity ~= 0) and customVelocity or 200
-				local camera = workspace.CurrentCamera
-				local lookV = camera.CFrame.LookVector
-				local rightV = camera.CFrame.RightVector
-				local flatLook = Vector3.new(lookV.X, 0, lookV.Z)
-				if flatLook.Magnitude > 0 then flatLook = flatLook.Unit else flatLook = Vector3.new(0, 0, -1) end
-				local flatRight = Vector3.new(rightV.X, 0, rightV.Z)
-				if flatRight.Magnitude > 0 then flatRight = flatRight.Unit else flatRight = Vector3.new(1, 0, 0) end
-
-				-- Dpad / WASD + E/Q calculation
-				local moveDir = Vector3.zero
-				if activeKeys.W then moveDir = moveDir + flatLook end
-				if activeKeys.S then moveDir = moveDir - flatLook end
-				if activeKeys.D then moveDir = moveDir + flatRight end
-				if activeKeys.A then moveDir = moveDir - flatRight end
-				if activeKeys.E then moveDir = moveDir + Vector3.new(0, 1, 0) end
-				if activeKeys.Q then moveDir = moveDir + Vector3.new(0, -1, 0) end
-
-				if moveDir.Magnitude > 0 then
-					moveDir = moveDir.Unit * velPower
-				elseif SelectedMagicTarget then
-					local dir = (SelectedMagicTarget - Root.Position)
-					if dir.Magnitude > 0.1 then
-						moveDir = dir.Unit * math.abs(velPower)
-					else
-						moveDir = Vector3.new(0, velPower, 0)
-					end
-				else
-					moveDir = Vector3.new(0, velPower, 0)
-				end
-
-				Root.AssemblyLinearVelocity = moveDir
-				Root.AssemblyAngularVelocity = Vector3.zero
-				Root.RotVelocity = Vector3.zero
-
-				if bv then
-					bv.Velocity = moveDir
-				end
-				
-				if sethiddenproperty then
-					pcall(function()
-						sethiddenproperty(Root, "PhysicsRepRootPart", TRoot)
-					end)
-				end
-			end)
-
-			local bv = nil
-			local initialVel = Vector3.new(0, (customVelocity and customVelocity ~= 0) and customVelocity or 200, 0)
-			bv = Instance.new("BodyVelocity")
-			bv.Velocity = initialVel
-			bv.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
-			bv.P = 1250
-			bv.Parent = Root
-
-			CurrentWeld = {
-				Destroy = function()
-					magicRunning = false
-					if connection then connection:Disconnect() end
-					if bv then bv:Destroy() end
-					if Root then
-						Root.CFrame = initialCFrame
-						Root.AssemblyLinearVelocity = Vector3.zero
-						Root.AssemblyAngularVelocity = Vector3.zero
-						Root.RotVelocity = Vector3.zero
-					end
-					workspace.FallenPartsDestroyHeight = OriginalFPDH
-				end
-			}
-
-			notify("Magic Carpet", "Launching " .. TPlayer.Name .. " (Use WASD + E/Q to steer)!")
-
-			local elapsed = 0
-			local waitTime = customTime or 999999 -- Keeps running until Stop Weld or manual stop
-			while elapsed < waitTime do
-				if not magicRunning then break end
-				task.wait(0.05)
-				elapsed = elapsed + 0.05
-			end
-
-			if magicRunning then
-				if connection then connection:Disconnect() end
-				if bv then bv:Destroy() end
-
-				Root.CFrame = initialCFrame
-				Root.AssemblyLinearVelocity = Vector3.zero
-				Root.AssemblyAngularVelocity = Vector3.zero
-				Root.RotVelocity = Vector3.zero
-				workspace.FallenPartsDestroyHeight = OriginalFPDH
-				CurrentWeld = nil
-
-				notify("Magic Carpet", "Returned to initial position.")
-			end
-		end)
-	end)
-end
 --// PART 3: Firework, Combo & Directional Slam Functions
 
 local function Firework(targetInput, speaker: Player)
@@ -585,7 +422,7 @@ local function Firework(targetInput, speaker: Player)
 					Root.AssemblyLinearVelocity = Vector3.new(0, 250, 0) + Vector3.new(math.random(-300, 300), math.random(300, 500), math.random(-300, 300))
 					Root.RotVelocity = Vector3.new(40000, 40000, 40000)
 				else
-					Root.AssemblyLinearVelocity = Vector3.new(0, 150, 0)
+					Root.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
 					Root.AssemblyAngularVelocity = Vector3.zero
 					Root.RotVelocity = Vector3.zero
 				end
@@ -593,21 +430,15 @@ local function Firework(targetInput, speaker: Player)
 				if sethiddenproperty then
 					pcall(function()
 						sethiddenproperty(Root, "PhysicsRepRootPart", TRoot)
+						sethiddenproperty(Root, "PhysicsRepRootRef", InstanceHandle.new(TRoot))
 					end)
 				end
 			end)
-
-			local bv = Instance.new("BodyVelocity")
-			bv.Velocity = Vector3.new(0, 150, 0)
-			bv.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
-			bv.P = 1250
-			bv.Parent = Root
 
 			CurrentWeld = {
 				Destroy = function()
 					fireworkRunning = false
 					if connection then connection:Disconnect() end
-					if bv then bv:Destroy() end
 					if Root then
 						Root.CFrame = initialCFrame
 						Root.AssemblyLinearVelocity = Vector3.zero
@@ -618,7 +449,7 @@ local function Firework(targetInput, speaker: Player)
 				end
 			}
 
-			notify("Firework", "Lifting " .. TPlayer.Name .. " into the air...")
+			notify("Firework", "Holding " .. TPlayer.Name .. "...")
 
 			local elapsed = 0
 			while elapsed < FireworkInterval do
@@ -628,7 +459,6 @@ local function Firework(targetInput, speaker: Player)
 			end
 
 			if fireworkRunning then
-				if bv then bv:Destroy() end
 				useFling = true
 				notify("Firework", "BOOM! Firework explosion!")
 
@@ -720,7 +550,7 @@ local function Combo(targetInput, speaker: Player)
 
 			if not comboRunning or not character.Parent or not TRoot.Parent then return end
 
-			notify("Combo", "Lifting " .. TPlayer.Name .. " into the air...")
+			notify("Combo", "Holding " .. TPlayer.Name .. "...")
 
 			local useFling = false
 			local connection
@@ -735,7 +565,7 @@ local function Combo(targetInput, speaker: Player)
 					Root.AssemblyLinearVelocity = Vector3.new(0, 250, 0) + Vector3.new(math.random(-300, 300), math.random(300, 500), math.random(-300, 300))
 					Root.RotVelocity = Vector3.new(40000, 40000, 40000)
 				else
-					Root.AssemblyLinearVelocity = Vector3.new(0, 150, 0)
+					Root.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
 					Root.AssemblyAngularVelocity = Vector3.zero
 					Root.RotVelocity = Vector3.zero
 				end
@@ -743,22 +573,16 @@ local function Combo(targetInput, speaker: Player)
 				if sethiddenproperty then
 					pcall(function()
 						sethiddenproperty(Root, "PhysicsRepRootPart", TRoot)
+						sethiddenproperty(Root, "PhysicsRepRootRef", InstanceHandle.new(TRoot))
 					end)
 				end
 			end)
-
-			local bv = Instance.new("BodyVelocity")
-			bv.Velocity = Vector3.new(0, 150, 0)
-			bv.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
-			bv.P = 1250
-			bv.Parent = Root
 
 			local oldDestroy = CurrentWeld.Destroy
 			CurrentWeld.Destroy = function()
 				comboRunning = false
 				stopSoaringAnimation()
 				if connection then connection:Disconnect() end
-				if bv then bv:Destroy() end
 				oldDestroy()
 			end
 
@@ -770,7 +594,6 @@ local function Combo(targetInput, speaker: Player)
 			end
 
 			if comboRunning then
-				if bv then bv:Destroy() end
 				useFling = true
 				notify("Combo", "BOOM! Combo explosion in the air!")
 
@@ -854,6 +677,7 @@ local function Slam(targetInput, speaker: Player, customVelocity)
 
 					if sethiddenproperty then
 						sethiddenproperty(Root, "PhysicsRepRootPart", TRoot)
+						sethiddenproperty(Root, "PhysicsRepRootRef", InstanceHandle.new(TRoot))
 					end
 				end)
 			end)
@@ -907,7 +731,7 @@ ScreenGui.Name = "UniversalWeldGUI"
 ScreenGui.ResetOnSpawn = false
 
 local MainFrame = Instance.new("Frame", ScreenGui)
-MainFrame.Size = UDim2.new(0, 320, 0, 420)
+MainFrame.Size = UDim2.new(0, 320, 0, 355)
 MainFrame.Position = UDim2.new(0.4, 0, 0.3, 0)
 MainFrame.BackgroundColor3 = Color3.fromRGB(35, 42, 54)
 MainFrame.BorderSizePixel = 0
@@ -970,7 +794,7 @@ ConfigFrame.Position = UDim2.new(0.4, 330, 0.3, 0)
 ConfigFrame.BackgroundColor3 = Color3.fromRGB(35, 42, 54)
 ConfigFrame.BorderSizePixel = 0
 ConfigFrame.Visible = false
-ConfigFrame.CanvasSize = UDim2.new(0, 0, 0, 660)
+ConfigFrame.CanvasSize = UDim2.new(0, 0, 0, 620)
 ConfigFrame.ScrollBarThickness = 6
 Instance.new("UICorner", ConfigFrame).CornerRadius = UDim.new(0, 8)
 
@@ -1051,7 +875,6 @@ InfoText.Text = [[TARGET COMMANDS:
 FEATURES:
 • Soaring beast: Teleports around target then flings to void.
 • Rocket: Launches user and target up with Velocity.
-• Magic Carpet: Offset 5.0, steerable with WASD + E/Q.
 • Firework: Lifts target and explodes with fling.
 • Combo: Soars, lifts, and executes fling explosion.
 • Slam: Directional push using 🎯 Pick Dir tool.
@@ -1132,37 +955,9 @@ PlusBtn.MouseButton1Click:Connect(function()
 	HeightDisplay.Text = string.format("%.1f", RocketBaseHeight)
 end)
 
-local CarpetHeightLabel = Instance.new("TextLabel", ConfigFrame)
-CarpetHeightLabel.Size = UDim2.new(0, 190, 0, 20)
-CarpetHeightLabel.Position = UDim2.new(0, 15, 0, 165)
-CarpetHeightLabel.BackgroundTransparency = 1
-CarpetHeightLabel.Text = "Magic Carpet Height Offset:"
-CarpetHeightLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
-CarpetHeightLabel.TextSize = 12
-CarpetHeightLabel.TextXAlignment = Enum.TextXAlignment.Left
-
-local CarpetHeightBox = Instance.new("TextBox", ConfigFrame)
-CarpetHeightBox.Size = UDim2.new(0, 190, 0, 28)
-CarpetHeightBox.Position = UDim2.new(0, 15, 0, 188)
-CarpetHeightBox.BackgroundColor3 = Color3.fromRGB(50, 62, 80)
-CarpetHeightBox.TextColor3 = Color3.fromRGB(255, 255, 255)
-CarpetHeightBox.Text = tostring(MagicCarpetHeight)
-CarpetHeightBox.TextSize = 13
-Instance.new("UICorner", CarpetHeightBox).CornerRadius = UDim.new(0, 6)
-
-CarpetHeightBox.FocusLost:Connect(function()
-	local val = tonumber(CarpetHeightBox.Text)
-	if val then
-		MagicCarpetHeight = val
-		CarpetHeightBox.Text = tostring(val)
-	else
-		CarpetHeightBox.Text = tostring(MagicCarpetHeight)
-	end
-end)
-
 local SpeedLabel = Instance.new("TextLabel", ConfigFrame)
 SpeedLabel.Size = UDim2.new(0, 190, 0, 20)
-SpeedLabel.Position = UDim2.new(0, 15, 0, 225)
+SpeedLabel.Position = UDim2.new(0, 15, 0, 165)
 SpeedLabel.BackgroundTransparency = 1
 SpeedLabel.Text = "Soaring Speed (Delay s):"
 SpeedLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
@@ -1171,7 +966,7 @@ SpeedLabel.TextXAlignment = Enum.TextXAlignment.Left
 
 local SpeedBox = Instance.new("TextBox", ConfigFrame)
 SpeedBox.Size = UDim2.new(0, 190, 0, 28)
-SpeedBox.Position = UDim2.new(0, 15, 0, 248)
+SpeedBox.Position = UDim2.new(0, 15, 0, 188)
 SpeedBox.BackgroundColor3 = Color3.fromRGB(50, 62, 80)
 SpeedBox.TextColor3 = Color3.fromRGB(255, 255, 255)
 SpeedBox.Text = tostring(SoaringSpeed)
@@ -1190,7 +985,7 @@ end)
 
 local SeqLabel = Instance.new("TextLabel", ConfigFrame)
 SeqLabel.Size = UDim2.new(0, 190, 0, 20)
-SeqLabel.Position = UDim2.new(0, 15, 0, 285)
+SeqLabel.Position = UDim2.new(0, 15, 0, 225)
 SeqLabel.BackgroundTransparency = 1
 SeqLabel.Text = "Soaring Sequences (0 = Void):"
 SeqLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
@@ -1199,7 +994,7 @@ SeqLabel.TextXAlignment = Enum.TextXAlignment.Left
 
 local SeqBox = Instance.new("TextBox", ConfigFrame)
 SeqBox.Size = UDim2.new(0, 190, 0, 28)
-SeqBox.Position = UDim2.new(0, 15, 0, 308)
+SeqBox.Position = UDim2.new(0, 15, 0, 248)
 SeqBox.BackgroundColor3 = Color3.fromRGB(50, 62, 80)
 SeqBox.TextColor3 = Color3.fromRGB(255, 255, 255)
 SeqBox.Text = tostring(SoaringSequences)
@@ -1218,7 +1013,7 @@ end)
 
 local DelayLabel = Instance.new("TextLabel", ConfigFrame)
 DelayLabel.Size = UDim2.new(0, 190, 0, 20)
-DelayLabel.Position = UDim2.new(0, 15, 0, 345)
+DelayLabel.Position = UDim2.new(0, 15, 0, 285)
 DelayLabel.BackgroundTransparency = 1
 DelayLabel.Text = "Void Drop Delay (s):"
 DelayLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
@@ -1227,7 +1022,7 @@ DelayLabel.TextXAlignment = Enum.TextXAlignment.Left
 
 local DelayBox = Instance.new("TextBox", ConfigFrame)
 DelayBox.Size = UDim2.new(0, 190, 0, 28)
-DelayBox.Position = UDim2.new(0, 15, 0, 368)
+DelayBox.Position = UDim2.new(0, 15, 0, 308)
 DelayBox.BackgroundColor3 = Color3.fromRGB(50, 62, 80)
 DelayBox.TextColor3 = Color3.fromRGB(255, 255, 255)
 DelayBox.Text = tostring(VoidDropDelay)
@@ -1246,7 +1041,7 @@ end)
 
 local FireworkLabel = Instance.new("TextLabel", ConfigFrame)
 FireworkLabel.Size = UDim2.new(0, 190, 0, 20)
-FireworkLabel.Position = UDim2.new(0, 15, 0, 405)
+FireworkLabel.Position = UDim2.new(0, 15, 0, 345)
 FireworkLabel.BackgroundTransparency = 1
 FireworkLabel.Text = "Firework/Combo Interval (s):"
 FireworkLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
@@ -1255,7 +1050,7 @@ FireworkLabel.TextXAlignment = Enum.TextXAlignment.Left
 
 local FireworkBox = Instance.new("TextBox", ConfigFrame)
 FireworkBox.Size = UDim2.new(0, 190, 0, 28)
-FireworkBox.Position = UDim2.new(0, 15, 0, 428)
+FireworkBox.Position = UDim2.new(0, 15, 0, 368)
 FireworkBox.BackgroundColor3 = Color3.fromRGB(50, 62, 80)
 FireworkBox.TextColor3 = Color3.fromRGB(255, 255, 255)
 FireworkBox.Text = tostring(FireworkInterval)
@@ -1274,7 +1069,7 @@ end)
 
 local SlamIntervalLabel = Instance.new("TextLabel", ConfigFrame)
 SlamIntervalLabel.Size = UDim2.new(0, 190, 0, 20)
-SlamIntervalLabel.Position = UDim2.new(0, 15, 0, 465)
+SlamIntervalLabel.Position = UDim2.new(0, 15, 0, 405)
 SlamIntervalLabel.BackgroundTransparency = 1
 SlamIntervalLabel.Text = "Slam Interval (s):"
 SlamIntervalLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
@@ -1283,7 +1078,7 @@ SlamIntervalLabel.TextXAlignment = Enum.TextXAlignment.Left
 
 local SlamIntervalBox = Instance.new("TextBox", ConfigFrame)
 SlamIntervalBox.Size = UDim2.new(0, 190, 0, 28)
-SlamIntervalBox.Position = UDim2.new(0, 15, 0, 488)
+SlamIntervalBox.Position = UDim2.new(0, 15, 0, 428)
 SlamIntervalBox.BackgroundColor3 = Color3.fromRGB(50, 62, 80)
 SlamIntervalBox.TextColor3 = Color3.fromRGB(255, 255, 255)
 SlamIntervalBox.Text = tostring(SlamInterval)
@@ -1302,7 +1097,7 @@ end)
 
 local OffsetLabel = Instance.new("TextLabel", ConfigFrame)
 OffsetLabel.Size = UDim2.new(0, 190, 0, 20)
-OffsetLabel.Position = UDim2.new(0, 15, 0, 525)
+OffsetLabel.Position = UDim2.new(0, 15, 0, 465)
 OffsetLabel.BackgroundTransparency = 1
 OffsetLabel.Text = "Slam Offset Distance:"
 OffsetLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
@@ -1311,7 +1106,7 @@ OffsetLabel.TextXAlignment = Enum.TextXAlignment.Left
 
 local OffsetBox = Instance.new("TextBox", ConfigFrame)
 OffsetBox.Size = UDim2.new(0, 190, 0, 28)
-OffsetBox.Position = UDim2.new(0, 15, 0, 548)
+OffsetBox.Position = UDim2.new(0, 15, 0, 488)
 OffsetBox.BackgroundColor3 = Color3.fromRGB(50, 62, 80)
 OffsetBox.TextColor3 = Color3.fromRGB(255, 255, 255)
 OffsetBox.Text = tostring(SlamOffsetDistance)
@@ -1360,12 +1155,12 @@ Instance.new("UICorner", ReturnTimeBox).CornerRadius = UDim.new(0, 6)
 
 local function createButton(text, posY, width, posX, callback)
 	local btn = Instance.new("TextButton", MainFrame)
-	btn.Size = UDim2.new(0, width or 290, 0, 26)
+	btn.Size = UDim2.new(0, width or 290, 0, 28)
 	btn.Position = UDim2.new(0, posX or 15, 0, posY)
 	btn.BackgroundColor3 = Color3.fromRGB(66, 83, 103)
 	btn.TextColor3 = Color3.fromRGB(255, 255, 255)
 	btn.Text = text
-	btn.TextSize = 12
+	btn.TextSize = 13
 	Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 6)
 	btn.MouseButton1Click:Connect(function()
 		local targetName = TargetBox.Text
@@ -1378,56 +1173,61 @@ createButton("Soaring beast", 110, 290, 15, function(target)
 	SoaringBeast(target, LocalPlayer)
 end)
 
-createButton("Rocket", 140, 290, 15, function(target)
-	local velVal = tonumber(VelocityBox.Text)
+createButton("Rocket", 143, 290, 15, function(target)
+	local velVal = tonumber(VelocityBox.Text) or 0
 	local timeVal = tonumber(ReturnTimeBox.Text) or 0.5
 	Rocket(target, LocalPlayer, velVal, timeVal)
 end)
 
-createButton("Magic Carpet", 170, 195, 15, function(target)
-	local velVal = tonumber(VelocityBox.Text)
-	local timeVal = tonumber(ReturnTimeBox.Text) or 999999
-	MagicCarpet(target, LocalPlayer, velVal, timeVal)
+createButton("Firework (Lift & Fling)", 176, 290, 15, function(target)
+	Firework(target, LocalPlayer)
 end)
 
-local MagicPickDirBtn = Instance.new("TextButton", MainFrame)
-MagicPickDirBtn.Size = UDim2.new(0, 90, 0, 26)
-MagicPickDirBtn.Position = UDim2.new(0, 215, 0, 170)
-MagicPickDirBtn.BackgroundColor3 = Color3.fromRGB(80, 100, 130)
-MagicPickDirBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-MagicPickDirBtn.Text = "🎯 Pick Dir"
-MagicPickDirBtn.TextSize = 12
-Instance.new("UICorner", MagicPickDirBtn).CornerRadius = UDim.new(0, 6)
+createButton("Combo (Soaring + Lift + Fling)", 209, 290, 15, function(target)
+	Combo(target, LocalPlayer)
+end)
 
-MagicPickDirBtn.MouseButton1Click:Connect(function()
-	SelectedMagicTarget = nil
-	notify("Magic Carpet Dir", "Click anywhere in the world to set velocity direction!")
-	task.delay(0.2, function()
-		local mouseConn
-		mouseConn = UserInputService.InputBegan:Connect(function(input)
-			if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-				mouseConn:Disconnect()
-				local camera = workspace.CurrentCamera
-				local mouse = LocalPlayer:GetMouse()
-				local unitRay = camera:ScreenPointToRay(mouse.X, mouse.Y)
-				local raycastParams = RaycastParams.new()
-                raycastParams.FilterType = Enum.RaycastFilterType.Exclude
-				raycastParams.FilterDescendantsInstances = {LocalPlayer.Character}
-				local result = workspace:Raycast(unitRay.Origin, unitRay.Direction * 1000, raycastParams)
-				if result then
-					SelectedSlamTarget = result.Position
-					notify("Slam Direction", "Direction locked successfully!")
-				else
-					SelectedSlamTarget = camera.Focus.Position
-					notify("Slam Direction", "Direction set to camera focus!")
-				end
+createButton("Slam (Directional)", 242, 195, 15, function(target)
+	local velVal = tonumber(VelocityBox.Text) or 0
+	Slam(target, LocalPlayer, velVal)
+end)
+
+local PickDirBtn = Instance.new("TextButton", MainFrame)
+PickDirBtn.Size = UDim2.new(0, 90, 0, 28)
+PickDirBtn.Position = UDim2.new(0, 215, 0, 242)
+PickDirBtn.BackgroundColor3 = Color3.fromRGB(80, 100, 130)
+PickDirBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+PickDirBtn.Text = "🎯 Pick Dir"
+PickDirBtn.TextSize = 12
+Instance.new("UICorner", PickDirBtn).CornerRadius = UDim.new(0, 6)
+
+PickDirBtn.MouseButton1Click:Connect(function()
+	SelectedSlamTarget = nil
+	notify("Slam Direction", "Click anywhere in the world to set launch direction!")
+	local mouseConn
+	mouseConn = UserInputService.InputBegan:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+			mouseConn:Disconnect()
+			local camera = workspace.CurrentCamera
+			local mouse = LocalPlayer:GetMouse()
+			local unitRay = camera:ScreenPointToRay(mouse.X, mouse.Y)
+			local raycastParams = RaycastParams.new()
+			raycastParams.FilterType = Enum.RaycastFilterType.Exclude
+			raycastParams.FilterDescendantsInstances = {LocalPlayer.Character}
+			local result = workspace:Raycast(unitRay.Origin, unitRay.Direction * 1000, raycastParams)
+			if result then
+				SelectedSlamTarget = result.Position
+				notify("Slam Direction", "Direction locked successfully!")
+			else
+				SelectedSlamTarget = camera.Focus.Position
+				notify("Slam Direction", "Direction set to camera focus!")
 			end
-		end)
+		end
 	end)
 end)
 
-createButton("Stop Weld (Turn Off)", 290, 290, 15, function()
+createButton("Stop Weld (Turn Off)", 275, 290, 15, function()
 	StopWeld()
 end)
 
-notify("Universal Weld", "Magic Carpet updated with WASD + E/Q steering logic!")
+notify("Universal Weld", "Script updated successfully!")
