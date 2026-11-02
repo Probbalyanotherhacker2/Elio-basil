@@ -1,4 +1,4 @@
---// PARTE 1: Serviços, Variáveis, Lógica de Alvo, Rocket e Magic Carpet
+--// PART 1: Services, Variables, Animation & Target Resolution
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
@@ -8,18 +8,26 @@ local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
 local sethiddenproperty = sethiddenproperty or set_hidden_property or set_hidden_prop
 local CurrentWeld = nil
 local OriginalFPDH = workspace.FallenPartsDestroyHeight
+local SoaringAnimTrack = nil
 
---// Variáveis de Configuração
-local RocketAngle = 0          -- Ângulo do Rocket e Magic Carpet (0 a 360)
-local RocketBaseHeight = -3.5  -- Altura base do Rocket
+--// Editable Configuration Variables
+local RocketAngle = 0          
+local RocketBaseHeight = -3.5  
+local SoaringSpeed = 0.08      
+local SoaringSequences = 3     
+local VoidDropDelay = 4        
+local FireworkInterval = 2     
+local SlamInterval = 0.2       
+local SlamOffsetDistance = 3   
+local SelectedSlamTarget = nil 
 
---// Variáveis do Magic Carpet
-local MagicCarpetOffset = 4.5  -- Offset padrão abaixo da vítima
+--// Magic Carpet Variables
+local MagicCarpetOffset = 4.5  
 local MagicCarpetRunning = false
 local MagicCarpetMoveDir = Vector3.zero
 local MagicCarpetGui = nil
 
---// Função de Notificação Segura
+--// Safe Notification Function
 local function notify(title, text)
 	pcall(function()
 		game:GetService("StarterGui"):SetCore("SendNotification", {
@@ -30,7 +38,35 @@ local function notify(title, text)
 	end)
 end
 
---// Resolvedor Avançado de Alvos
+--// Animation Management Functions
+local function playSoaringAnimation(character)
+	local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+	if humanoid then
+		local animator = humanoid:FindFirstChildOfClass("Animator")
+		if animator then
+			pcall(function()
+				if SoaringAnimTrack then
+					SoaringAnimTrack:Stop()
+					SoaringAnimTrack:Destroy()
+				end
+				local anim = Instance.new("Animation")
+				anim.AnimationId = "rbxassetid://91821363359739"
+				SoaringAnimTrack = animator:LoadAnimation(anim)
+				SoaringAnimTrack.Priority = Enum.AnimationPriority.Action4
+				SoaringAnimTrack:Play()
+			end)
+		end
+	end
+end
+
+local function stopSoaringAnimation()
+	if SoaringAnimTrack then
+		pcall(function() SoaringAnimTrack:Stop(); SoaringAnimTrack:Destroy() end)
+		SoaringAnimTrack = nil
+	end
+end
+
+--// Advanced Target Resolver
 local function resolveTarget(stringer, speaker, callback)
 	stringer = stringer and string.match(stringer, "^%s*(.-)%s*$") or ""
 	stringer = string.lower(stringer)
@@ -104,9 +140,11 @@ local function resolveTarget(stringer, speaker, callback)
 		notify("Target", "Player not found!")
 	end
 end
+--// PART 2: StopWeld, SoaringBeast & Rocket Functions
 
---// Função para Parar Tudo (Unweld)
+--// Stop Everything Function
 local function StopWeld()
+	stopSoaringAnimation()
 	MagicCarpetRunning = false
 	MagicCarpetMoveDir = Vector3.zero
 	if MagicCarpetGui then MagicCarpetGui.Visible = false end
@@ -124,7 +162,128 @@ local function StopWeld()
 	notify("Welder", "Actions stopped and player released!")
 end
 
---// Função Rocket
+--// Soaring Beast Function
+local function SoaringBeast(targetInput, speaker: Player)
+	if not targetInput or targetInput == "" then return notify('Player Required', 'No target provided for Soaring beast!') end
+
+	resolveTarget(targetInput, speaker, function(v)
+		local TPlayer = Players:FindFirstChild(v)
+		if not TPlayer or not TPlayer.Character or TPlayer == speaker then return end
+
+		StopWeld()
+
+		local TCharacter = TPlayer.Character
+		local TRoot = TCharacter:WaitForChild("HumanoidRootPart", 2) or TCharacter:FindFirstChild("Torso") or TCharacter:FindFirstChild("UpperTorso")
+		if not TRoot then return end
+
+		local character = speaker.Character
+		if not character then return end
+		local Root = character:WaitForChild("HumanoidRootPart", 2)
+		if not Root then return end
+
+		task.spawn(function()
+			local initialCFrame = Root.CFrame
+			workspace.FallenPartsDestroyHeight = 0/0
+
+			for _, part in pairs(character:GetDescendants()) do
+				if part:IsA("BasePart") then
+					part.CanCollide = false
+					part.Massless = true
+				end
+			end
+
+			playSoaringAnimation(character)
+
+			local directions = {
+				CFrame.new(0, 5, 0),
+				CFrame.new(0, -3, 0),
+				CFrame.new(0, 0, -3),
+				CFrame.new(0, 0, 3),
+				CFrame.new(-3, 0, 0),
+				CFrame.new(3, 0, 0)
+			}
+
+			local soaringRunning = true
+
+			CurrentWeld = {
+				Destroy = function()
+					soaringRunning = false
+					stopSoaringAnimation()
+					if Root then
+						Root.CFrame = initialCFrame
+						Root.AssemblyLinearVelocity = Vector3.zero
+						Root.AssemblyAngularVelocity = Vector3.zero
+						Root.RotVelocity = Vector3.zero
+					end
+					workspace.FallenPartsDestroyHeight = OriginalFPDH
+				end
+			}
+
+			if SoaringSequences > 0 then
+				notify("Soaring beast", "Attacking " .. TPlayer.Name .. " (" .. SoaringSequences .. " cycles)...")
+				
+				for cycle = 1, SoaringSequences do
+					for _, offset in ipairs(directions) do
+						if not soaringRunning or not character.Parent or not TRoot.Parent then break end
+						local destCFrame = TRoot.CFrame * offset
+						Root.CFrame = CFrame.lookAt(destCFrame.Position, TRoot.Position)
+						task.wait(SoaringSpeed)
+					end
+					if not soaringRunning then break end
+				end
+			else
+				notify("Soaring beast", "Sequence 0: Going straight to Void with " .. TPlayer.Name)
+			end
+
+			if soaringRunning and character.Parent and TRoot.Parent then
+				notify("Soaring beast", "Executing Void Drop!")
+				
+				local voidConnection
+				voidConnection = RunService.Heartbeat:Connect(function()
+					if not character.Parent or not TRoot.Parent then return end
+					Root.CFrame = TRoot.CFrame * CFrame.new(0, -2, 0)
+					Root.AssemblyLinearVelocity = Vector3.new(0, -500, 0) + Vector3.new(math.random(-400, 400), math.random(-800, -300), math.random(-400, 400))
+					Root.RotVelocity = Vector3.new(40000, 40000, 40000)
+					
+					if sethiddenproperty then
+						pcall(function()
+							sethiddenproperty(Root, "PhysicsRepRootPart", TRoot)
+						end)
+					end
+				end)
+
+				local oldDestroy = CurrentWeld.Destroy
+				CurrentWeld.Destroy = function()
+					if voidConnection then voidConnection:Disconnect() end
+					oldDestroy()
+				end
+
+				local elapsed = 0
+				while elapsed < VoidDropDelay do
+					if not soaringRunning then break end
+					task.wait(0.1)
+					elapsed = elapsed + 0.1
+				end
+
+				if voidConnection then voidConnection:Disconnect() end
+			end
+
+			if soaringRunning then
+				stopSoaringAnimation()
+				Root.CFrame = initialCFrame
+				Root.AssemblyLinearVelocity = Vector3.zero
+				Root.AssemblyAngularVelocity = Vector3.zero
+				Root.RotVelocity = Vector3.zero
+				workspace.FallenPartsDestroyHeight = OriginalFPDH
+				CurrentWeld = nil
+
+				notify("Soaring beast", "Action completed successfully!")
+			end
+		end)
+	end)
+end
+
+--// Rocket Function
 local function Rocket(targetInput, speaker: Player, customVelocity, customTime)
 	if not targetInput or targetInput == "" then return notify('Player Required', 'No target provided for Rocket!') end
 
@@ -226,8 +385,369 @@ local function Rocket(targetInput, speaker: Player, customVelocity, customTime)
 		end)
 	end)
 end
+--// PART 3: Firework, Combo, Slam & Magic Carpet Functions
 
---// Função Magic Carpet
+--// Firework Function
+local function Firework(targetInput, speaker: Player)
+	if not targetInput or targetInput == "" then return notify('Player Required', 'No target provided for Firework!') end
+
+	resolveTarget(targetInput, speaker, function(v)
+		local TPlayer = Players:FindFirstChild(v)
+		if not TPlayer or not TPlayer.Character or TPlayer == speaker then return end
+
+		StopWeld()
+
+		local TCharacter = TPlayer.Character
+		local TRoot = TCharacter:WaitForChild("HumanoidRootPart", 2) or TCharacter:FindFirstChild("Torso") or TCharacter:FindFirstChild("UpperTorso")
+		if not TRoot then return end
+
+		local character = speaker.Character
+		if not character then return end
+		local Root = character:WaitForChild("HumanoidRootPart", 2)
+		if not Root then return end
+
+		task.spawn(function()
+			local initialCFrame = Root.CFrame
+			workspace.FallenPartsDestroyHeight = 0/0
+
+			for _, part in pairs(character:GetDescendants()) do
+				if part:IsA("BasePart") then
+					part.CanCollide = false
+					part.Massless = true
+				end
+			end
+
+			local fireworkRunning = true
+			local useFling = false
+
+			local connection
+			connection = RunService.Heartbeat:Connect(function()
+				if not fireworkRunning or not character.Parent or not TRoot.Parent then
+					if connection then connection:Disconnect() end
+					return
+				end
+				Root.CFrame = TRoot.CFrame * CFrame.new(0, RocketBaseHeight, 0) * CFrame.Angles(math.rad(RocketAngle), 0, 0)
+				
+				if useFling then
+					Root.AssemblyLinearVelocity = Vector3.new(0, 250, 0) + Vector3.new(math.random(-300, 300), math.random(300, 500), math.random(-300, 300))
+					Root.RotVelocity = Vector3.new(40000, 40000, 40000)
+				else
+					Root.AssemblyLinearVelocity = Vector3.new(0, 150, 0)
+					Root.AssemblyAngularVelocity = Vector3.zero
+					Root.RotVelocity = Vector3.zero
+				end
+				
+				if sethiddenproperty then
+					pcall(function()
+						sethiddenproperty(Root, "PhysicsRepRootPart", TRoot)
+					end)
+				end
+			end)
+
+			local bv = Instance.new("BodyVelocity")
+			bv.Velocity = Vector3.new(0, 150, 0)
+			bv.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
+			bv.P = 1250
+			bv.Parent = Root
+
+			CurrentWeld = {
+				Destroy = function()
+					fireworkRunning = false
+					if connection then connection:Disconnect() end
+					if bv then bv:Destroy() end
+					if Root then
+						Root.CFrame = initialCFrame
+						Root.AssemblyLinearVelocity = Vector3.zero
+						Root.AssemblyAngularVelocity = Vector3.zero
+						Root.RotVelocity = Vector3.zero
+					end
+					workspace.FallenPartsDestroyHeight = OriginalFPDH
+				end
+			}
+
+			notify("Firework", "Lifting " .. TPlayer.Name .. " into the air...")
+
+			local elapsed = 0
+			while elapsed < FireworkInterval do
+				if not fireworkRunning then break end
+				task.wait(0.05)
+				elapsed = elapsed + 0.05
+			end
+
+			if fireworkRunning then
+				if bv then bv:Destroy() end
+				useFling = true
+				notify("Firework", "BOOM! Firework explosion!")
+
+				task.wait(0.6)
+
+				if connection then connection:Disconnect() end
+
+				Root.CFrame = initialCFrame
+				Root.AssemblyLinearVelocity = Vector3.zero
+				Root.AssemblyAngularVelocity = Vector3.zero
+				Root.RotVelocity = Vector3.zero
+				workspace.FallenPartsDestroyHeight = OriginalFPDH
+				CurrentWeld = nil
+
+				notify("Firework", "Returned to initial position.")
+			end
+		end)
+	end)
+end
+
+--// Combo Function
+local function Combo(targetInput, speaker: Player)
+	if not targetInput or targetInput == "" then return notify('Player Required', 'No target provided for Combo!') end
+
+	resolveTarget(targetInput, speaker, function(v)
+		local TPlayer = Players:FindFirstChild(v)
+		if not TPlayer or not TPlayer.Character or TPlayer == speaker then return end
+
+		StopWeld()
+
+		local TCharacter = TPlayer.Character
+		local TRoot = TCharacter:WaitForChild("HumanoidRootPart", 2) or TCharacter:FindFirstChild("Torso") or TCharacter:FindFirstChild("UpperTorso")
+		if not TRoot then return end
+
+		local character = speaker.Character
+		if not character then return end
+		local Root = character:WaitForChild("HumanoidRootPart", 2)
+		if not Root then return end
+
+		task.spawn(function()
+			local initialCFrame = Root.CFrame
+			workspace.FallenPartsDestroyHeight = 0/0
+
+			for _, part in pairs(character:GetDescendants()) do
+				if part:IsA("BasePart") then
+					part.CanCollide = false
+					part.Massless = true
+				end
+			end
+
+			playSoaringAnimation(character)
+
+			local directions = {
+				CFrame.new(0, 5, 0),
+				CFrame.new(0, -3, 0),
+				CFrame.new(0, 0, -3),
+				CFrame.new(0, 0, 3),
+				CFrame.new(-3, 0, 0),
+				CFrame.new(3, 0, 0)
+			}
+
+			local comboRunning = true
+
+			CurrentWeld = {
+				Destroy = function()
+					comboRunning = false
+					stopSoaringAnimation()
+					if Root then
+						Root.CFrame = initialCFrame
+						Root.AssemblyLinearVelocity = Vector3.zero
+						Root.AssemblyAngularVelocity = Vector3.zero
+						Root.RotVelocity = Vector3.zero
+					end
+					workspace.FallenPartsDestroyHeight = OriginalFPDH
+				end
+			}
+
+			if SoaringSequences > 0 then
+				notify("Combo", "Executing Soaring Phase on " .. TPlayer.Name .. "...")
+				for cycle = 1, SoaringSequences do
+					for _, offset in ipairs(directions) do
+						if not comboRunning or not character.Parent or not TRoot.Parent then break end
+						local destCFrame = TRoot.CFrame * offset
+						Root.CFrame = CFrame.lookAt(destCFrame.Position, TRoot.Position)
+						task.wait(SoaringSpeed)
+					end
+					if not comboRunning then break end
+				end
+			end
+
+			if not comboRunning or not character.Parent or not TRoot.Parent then return end
+
+			notify("Combo", "Lifting " .. TPlayer.Name .. " into the air...")
+
+			local useFling = false
+			local connection
+			connection = RunService.Heartbeat:Connect(function()
+				if not comboRunning or not character.Parent or not TRoot.Parent then
+					if connection then connection:Disconnect() end
+					return
+				end
+				Root.CFrame = TRoot.CFrame * CFrame.new(0, RocketBaseHeight, 0) * CFrame.Angles(math.rad(RocketAngle), 0, 0)
+				
+				if useFling then
+					Root.AssemblyLinearVelocity = Vector3.new(0, 250, 0) + Vector3.new(math.random(-300, 300), math.random(300, 500), math.random(-300, 300))
+					Root.RotVelocity = Vector3.new(40000, 40000, 40000)
+				else
+					Root.AssemblyLinearVelocity = Vector3.new(0, 150, 0)
+					Root.AssemblyAngularVelocity = Vector3.zero
+					Root.RotVelocity = Vector3.zero
+				end
+				
+				if sethiddenproperty then
+					pcall(function()
+						sethiddenproperty(Root, "PhysicsRepRootPart", TRoot)
+					end)
+				end
+			end)
+
+			local bv = Instance.new("BodyVelocity")
+			bv.Velocity = Vector3.new(0, 150, 0)
+			bv.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
+			bv.P = 1250
+			bv.Parent = Root
+
+			local oldDestroy = CurrentWeld.Destroy
+			CurrentWeld.Destroy = function()
+				comboRunning = false
+				stopSoaringAnimation()
+				if connection then connection:Disconnect() end
+				if bv then bv:Destroy() end
+				oldDestroy()
+			end
+
+			local elapsed = 0
+			while elapsed < FireworkInterval do
+				if not comboRunning then break end
+				task.wait(0.05)
+				elapsed = elapsed + 0.05
+			end
+
+			if comboRunning then
+				if bv then bv:Destroy() end
+				useFling = true
+				notify("Combo", "BOOM! Combo explosion in the air!")
+
+				task.wait(0.6)
+
+				if connection then connection:Disconnect() end
+
+				stopSoaringAnimation()
+				Root.CFrame = initialCFrame
+				Root.AssemblyLinearVelocity = Vector3.zero
+				Root.AssemblyAngularVelocity = Vector3.zero
+				Root.RotVelocity = Vector3.zero
+				workspace.FallenPartsDestroyHeight = OriginalFPDH
+				CurrentWeld = nil
+
+				notify("Combo", "Action completed successfully!")
+			end
+		end)
+	end)
+end
+
+--// Slam Function
+local function Slam(targetInput, speaker: Player, customVelocity)
+	if not targetInput or targetInput == "" then return notify('Player Required', 'No target provided for Slam!') end
+
+	resolveTarget(targetInput, speaker, function(v)
+		local TPlayer = Players:FindFirstChild(v)
+		if not TPlayer or not TPlayer.Character or TPlayer == speaker then return end
+
+		StopWeld()
+
+		local TCharacter = TPlayer.Character
+		local TRoot = TCharacter:WaitForChild("HumanoidRootPart", 2) or TCharacter:FindFirstChild("Torso") or TCharacter:FindFirstChild("UpperTorso")
+		if not TRoot then return end
+
+		local character = speaker.Character
+		if not character then return end
+		local Root = character:WaitForChild("HumanoidRootPart", 2)
+		if not Root then return end
+
+		task.spawn(function()
+			local initialCFrame = Root.CFrame
+			workspace.FallenPartsDestroyHeight = 0/0
+
+			for _, part in pairs(character:GetDescendants()) do
+				if part:IsA("BasePart") then
+					part.CanCollide = false
+					part.Massless = true
+				end
+			end
+
+			local slamRunning = true
+			local connection
+
+			connection = RunService.Heartbeat:Connect(function(dt)
+				if not slamRunning or not character.Parent or not TRoot.Parent then
+					if connection then connection:Disconnect() end
+					return
+				end
+
+				pcall(function()
+					local velPower = (customVelocity and customVelocity ~= 0) and customVelocity or 200
+					local pushDir = Vector3.new(0, -1, 0)
+
+					if SelectedSlamTarget then
+						local victimPos = TRoot.Position
+						local vec = SelectedSlamTarget - victimPos
+						if vec.Magnitude > 0.1 then
+							pushDir = vec.Unit
+							local backPos = victimPos - (pushDir * SlamOffsetDistance)
+							Root.CFrame = CFrame.lookAt(backPos, victimPos)
+						else
+							Root.CFrame = TRoot.CFrame * CFrame.new(0, SlamOffsetDistance, 0)
+						end
+					else
+						Root.CFrame = TRoot.CFrame * CFrame.new(0, SlamOffsetDistance, 0)
+					end
+
+					Root.AssemblyLinearVelocity = pushDir * velPower
+					Root.AssemblyAngularVelocity = Vector3.zero
+					Root.RotVelocity = Vector3.zero
+
+					if sethiddenproperty then
+						sethiddenproperty(Root, "PhysicsRepRootPart", TRoot)
+					end
+				end)
+			end)
+
+			CurrentWeld = {
+				Destroy = function()
+					slamRunning = false
+					if connection then connection:Disconnect() end
+					if Root then
+						Root.CFrame = initialCFrame
+						Root.AssemblyLinearVelocity = Vector3.zero
+						Root.AssemblyAngularVelocity = Vector3.zero
+						Root.RotVelocity = Vector3.zero
+					end
+					workspace.FallenPartsDestroyHeight = OriginalFPDH
+				end
+			}
+
+			notify("Slam", "Executing directional slam on " .. TPlayer.Name .. "!")
+
+			local elapsed = 0
+			local holdTime = SlamInterval or 0.2
+			while elapsed < holdTime do
+				if not slamRunning then break end
+				task.wait(0.05)
+				elapsed = elapsed + 0.05
+			end
+
+			if slamRunning then
+				if connection then connection:Disconnect() end
+
+				Root.CFrame = initialCFrame
+				Root.AssemblyLinearVelocity = Vector3.zero
+				Root.AssemblyAngularVelocity = Vector3.zero
+				Root.RotVelocity = Vector3.zero
+				workspace.FallenPartsDestroyHeight = OriginalFPDH
+				CurrentWeld = nil
+
+				notify("Slam", "Slam completed successfully!")
+			end
+		end)
+	end)
+end
+
+--// Magic Carpet Function
 local function MagicCarpet(targetInput, speaker: Player, customVelocity)
 	if not targetInput or targetInput == "" then return notify('Player Required', 'No target provided for Magic carpet!') end
 
@@ -314,13 +834,13 @@ local function MagicCarpet(targetInput, speaker: Player, customVelocity)
 		end)
 	end)
 end
---// PARTE 2: Interface Gráfica, Dpad, Controles de Configuração e Inicialização
+--// PART 4: Graphical Interface, Dpad, Configuration & Initialization
 local ScreenGui = Instance.new("ScreenGui", PlayerGui)
 ScreenGui.Name = "UniversalWeldGUI"
 ScreenGui.ResetOnSpawn = false
 
 local MainFrame = Instance.new("Frame", ScreenGui)
-MainFrame.Size = UDim2.new(0, 320, 0, 215)
+MainFrame.Size = UDim2.new(0, 320, 0, 390)
 MainFrame.Position = UDim2.new(0.4, 0, 0.3, 0)
 MainFrame.BackgroundColor3 = Color3.fromRGB(35, 42, 54)
 MainFrame.BorderSizePixel = 0
@@ -377,7 +897,6 @@ InfoToggleBtn.Text = "ℹ️ Info"
 InfoToggleBtn.TextSize = 11
 Instance.new("UICorner", InfoToggleBtn).CornerRadius = UDim.new(0, 5)
 
---// Magic Carpet Dpad & E/Q UI
 MagicCarpetGui = Instance.new("Frame", ScreenGui)
 MagicCarpetGui.Size = UDim2.new(0, 160, 0, 160)
 MagicCarpetGui.Position = UDim2.new(1, -180, 1, -200)
@@ -427,13 +946,14 @@ QBtn.MouseButton1Click:Connect(function()
 	notify("Magic Carpet", "Offset: " .. string.format("%.2f", MagicCarpetOffset))
 end)
 
---// Config & Info Frames
-local ConfigFrame = Instance.new("Frame", ScreenGui)
-ConfigFrame.Size = UDim2.new(0, 220, 0, 120)
+local ConfigFrame = Instance.new("ScrollingFrame", ScreenGui)
+ConfigFrame.Size = UDim2.new(0, 220, 0, 420)
 ConfigFrame.Position = UDim2.new(0.4, 330, 0.3, 0)
 ConfigFrame.BackgroundColor3 = Color3.fromRGB(35, 42, 54)
 ConfigFrame.BorderSizePixel = 0
 ConfigFrame.Visible = false
+ConfigFrame.CanvasSize = UDim2.new(0, 0, 0, 620)
+ConfigFrame.ScrollBarThickness = 6
 Instance.new("UICorner", ConfigFrame).CornerRadius = UDim.new(0, 8)
 
 local ConfigTitle = Instance.new("TextLabel", ConfigFrame)
@@ -446,12 +966,35 @@ ConfigTitle.TextXAlignment = Enum.TextXAlignment.Left
 ConfigTitle.FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json", Enum.FontWeight.Bold)
 Instance.new("UICorner", ConfigTitle).CornerRadius = UDim.new(0, 8)
 
+local configDragging, configDragInput, configDragStart, configStartPos
+ConfigTitle.InputBegan:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+		configDragging = true
+		configDragStart = input.Position
+		configStartPos = ConfigFrame.Position
+		input.Changed:Connect(function()
+			if input.UserInputState == Enum.UserInputState.End then configDragging = false end
+		end)
+	end
+end)
+ConfigTitle.InputChanged:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+		configDragInput = input
+	end
+end)
+UserInputService.InputChanged:Connect(function(input)
+	if input == configDragInput and configDragging then
+		local delta = input.Position - configDragStart
+		ConfigFrame.Position = UDim2.new(configStartPos.X.Scale, configStartPos.X.Offset + delta.X, configStartPos.Y.Scale, configStartPos.Y.Offset + delta.Y)
+	end
+end)
+
 ConfigToggleBtn.MouseButton1Click:Connect(function()
 	ConfigFrame.Visible = not ConfigFrame.Visible
 end)
 
 local InfoFrame = Instance.new("Frame", ScreenGui)
-InfoFrame.Size = UDim2.new(0, 260, 0, 180)
+InfoFrame.Size = UDim2.new(0, 260, 0, 345)
 InfoFrame.Position = UDim2.new(0.4, -270, 0.3, 0)
 InfoFrame.BackgroundColor3 = Color3.fromRGB(35, 42, 54)
 InfoFrame.BorderSizePixel = 0
@@ -473,11 +1016,11 @@ InfoToggleBtn.MouseButton1Click:Connect(function()
 end)
 
 local InfoText = Instance.new("TextLabel", InfoFrame)
-InfoText.Size = UDim2.new(0, 230, 0, 120)
+InfoText.Size = UDim2.new(0, 230, 0, 290)
 InfoText.Position = UDim2.new(0, 15, 0, 45)
 InfoText.BackgroundTransparency = 1
 InfoText.TextColor3 = Color3.fromRGB(220, 220, 220)
-InfoText.TextSize = 11
+InfoText.TextSize = 8
 InfoText.TextXAlignment = Enum.TextXAlignment.Left
 InfoText.TextYAlignment = Enum.TextYAlignment.Top
 InfoText.TextWrapped = true
@@ -486,7 +1029,9 @@ InfoText.Text = [[TARGET COMMANDS:
 • nearest / farthest / random.
 
 FEATURES:
-• Rocket & Magic Carpet.
+• Soaring beast / Rocket / Firework / Combo.
+• Slam: Directional push using 🎯 Pick Dir.
+• Magic Carpet: Carries target underneath at 90° with Dpad & E/Q offset control (Default offset: 4.5).
 • Stop Weld: Releases active welds.]]
 
 local function createConfigLabel(text, posY)
@@ -517,8 +1062,26 @@ local function createConfigBox(defaultVal, posY, callback)
 	return box
 end
 
-createConfigLabel("Rocket / Carpet Angle (0 - 360°):", 45)
+createConfigLabel("Rocket Angle (0 - 360°):", 45)
 local AngleBox = createConfigBox(RocketAngle, 68, function(v) RocketAngle = math.clamp(v, 0, 360) end)
+
+createConfigLabel("Soaring Speed (Delay s):", 110)
+local SpeedBox = createConfigBox(SoaringSpeed, 133, function(v) if v >= 0 then SoaringSpeed = v end end)
+
+createConfigLabel("Soaring Sequences (0 = Void):", 175)
+local SeqBox = createConfigBox(SoaringSequences, 198, function(v) if v >= 0 then SoaringSequences = math.floor(v) end end)
+
+createConfigLabel("Void Drop Delay (s):", 240)
+local DelayBox = createConfigBox(VoidDropDelay, 263, function(v) if v >= 0 then VoidDropDelay = v end end)
+
+createConfigLabel("Firework/Combo Interval (s):", 305)
+local FireworkBox = createConfigBox(FireworkInterval, 328, function(v) if v >= 0 then FireworkInterval = v end end)
+
+createConfigLabel("Slam Interval (s):", 370)
+local SlamIntervalBox = createConfigBox(SlamInterval, 393, function(v) if v >= 0 then SlamInterval = v end end)
+
+createConfigLabel("Slam Offset Distance:", 435)
+local OffsetBox = createConfigBox(SlamOffsetDistance, 458, function(v) SlamOffsetDistance = v end end)
 
 local TargetBox = Instance.new("TextBox", MainFrame)
 TargetBox.Size = UDim2.new(0, 290, 0, 30)
@@ -566,21 +1129,73 @@ local function createButton(text, posY, width, posX, callback)
 	return btn
 end
 
-createButton("Rocket", 111, 290, 15, function(target)
+createButton("Soaring beast", 110, 290, 15, function(target)
+	SoaringBeast(target, LocalPlayer)
+end)
+
+createButton("Rocket", 140, 290, 15, function(target)
 	local textVal = tonumber(VelocityBox.Text)
 	local velVal = (textVal and textVal ~= 0) and textVal or 200
 	local timeVal = tonumber(ReturnTimeBox.Text) or 0.5
 	Rocket(target, LocalPlayer, velVal, timeVal)
 end)
 
-createButton("Magic Carpet", 141, 290, 15, function(target)
+createButton("Firework (Lift & Fling)", 170, 290, 15, function(target)
+	Firework(target, LocalPlayer)
+end)
+
+createButton("Combo (Soaring + Lift + Fling)", 200, 290, 15, function(target)
+	Combo(target, LocalPlayer)
+end)
+
+createButton("Slam (Directional)", 230, 195, 15, function(target)
+	local textVal = tonumber(VelocityBox.Text)
+	local velVal = (textVal and textVal ~= 0) and textVal or 200
+	Slam(target, LocalPlayer, velVal)
+end)
+
+local PickDirBtn = Instance.new("TextButton", MainFrame)
+PickDirBtn.Size = UDim2.new(0, 90, 0, 26)
+PickDirBtn.Position = UDim2.new(0, 215, 0, 230)
+PickDirBtn.BackgroundColor3 = Color3.fromRGB(80, 100, 130)
+PickDirBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+PickDirBtn.Text = "🎯 Pick Dir"
+PickDirBtn.TextSize = 12
+Instance.new("UICorner", PickDirBtn).CornerRadius = UDim.new(0, 6)
+
+PickDirBtn.MouseButton1Click:Connect(function()
+	SelectedSlamTarget = nil
+	notify("Slam Direction", "Click anywhere in the world to set launch direction!")
+	local mouseConn
+	mouseConn = UserInputService.InputBegan:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+			mouseConn:Disconnect()
+			local camera = workspace.CurrentCamera
+			local mouse = LocalPlayer:GetMouse()
+			local unitRay = camera:ScreenPointToRay(mouse.X, mouse.Y)
+			local raycastParams = RaycastParams.new()
+			raycastParams.FilterType = Enum.RaycastFilterType.Exclude
+			raycastParams.FilterDescendantsInstances = {LocalPlayer.Character}
+			local result = workspace:Raycast(unitRay.Origin, unitRay.Direction * 1000, raycastParams)
+			if result then
+				SelectedSlamTarget = result.Position
+				notify("Slam Direction", "Direction locked successfully!")
+			else
+				SelectedSlamTarget = camera.Focus.Position
+				notify("Slam Direction", "Direction set to camera focus!")
+			end
+		end
+	end)
+end)
+
+createButton("Magic Carpet (90° + Dpad)", 260, 290, 15, function(target)
 	local textVal = tonumber(VelocityBox.Text)
 	local velVal = (textVal and textVal ~= 0) and textVal or 200
 	MagicCarpet(target, LocalPlayer, velVal)
 end)
 
-createButton("Stop Weld (Turn Off)", 171, 290, 15, function()
+createButton("Stop Weld (Turn Off)", 290, 290, 15, function()
 	StopWeld()
 end)
 
-notify("Universal Weld", "Loaded Rocket & Magic Carpet version (Split into 2 parts)!")
+notify("Universal Weld", "Script successfully loaded in 4 parts!")
