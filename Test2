@@ -10,6 +10,7 @@ local CurrentWeld = nil
 local OriginalFPDH = workspace.FallenPartsDestroyHeight
 local SoaringAnimTrack = nil
 local TortureAnimTrack = nil
+local ActiveBoxPart = nil      -- Referência para a parte visual da caixa
 
 --// Editable Configuration Variables
 local RocketAngle = 0          -- Rocket angle (0 to 360)
@@ -27,8 +28,8 @@ local TortureHeight = 15       -- Starting height above the victim for Torture
 local TortureDescentTime = 1.5 -- Time in seconds it takes to descend to the victim
 
 --// Box Configuration Variables
-local BoxSize = 10             -- Tamanho/Raio da caixa invisível (studs)
-local BoxLeadStuds = 3         -- Studs de antecedência para bloquear a saída
+local BoxSize = 10             -- Tamanho da caixa (diâmetro/raio em studs)
+local BoxLeadStuds = 2         -- Studs de antecedência para bloquear a saída
 
 --// Safe Notification Function
 local function notify(title, text)
@@ -180,6 +181,11 @@ local function StopWeld()
 	if PlatformGUI then
 		PlatformGUI:Destroy()
 		PlatformGUI = nil
+	end
+
+	if ActiveBoxPart then
+		ActiveBoxPart:Destroy()
+		ActiveBoxPart = nil
 	end
 
 	if CurrentWeld then
@@ -1067,12 +1073,32 @@ local function BoxFunc(targetInput, speaker: Player)
 				end
 			end
 
+			-- Centro da caixa na posição inicial da vítima
 			local boxCenter = TRoot.Position
+			
+			-- Criação da parte visual da caixa (visível apenas para você/semitransparente)
+			local boxPart = Instance.new("Part")
+			boxPart.Name = "VisualBox"
+			boxPart.Shape = Enum.PartType.Ball
+			boxPart.Size = Vector3.new(BoxSize, BoxSize, BoxSize)
+			boxPart.Position = boxCenter
+			boxPart.Anchored = true
+			boxPart.CanCollide = false
+			boxPart.Transparency = 0.65
+			boxPart.BrickColor = BrickColor.new("Bright orange")
+			boxPart.Material = Enum.Material.Neon
+			boxPart.Parent = workspace
+			ActiveBoxPart = boxPart
+
 			local boxRunning = true
 
 			CurrentWeld = {
 				Destroy = function()
 					boxRunning = false
+					if boxPart then
+						boxPart:Destroy()
+						ActiveBoxPart = nil
+					end
 					if Root then
 						Root.CFrame = initialCFrame
 						Root.AssemblyLinearVelocity = Vector3.zero
@@ -1094,12 +1120,17 @@ local function BoxFunc(targetInput, speaker: Player)
 
 				pcall(function()
 					local victimPos = TRoot.Position
-					local distFromCenter = (victimPos - boxCenter).Magnitude
-					local effectiveLimit = math.max(BoxSize - BoxLeadStuds, 1)
+					local offsetFromCenter = victimPos - boxCenter
+					local distFromCenter = offsetFromCenter.Magnitude
+					local effectiveLimit = math.max((BoxSize / 2) - BoxLeadStuds, 1)
 
-					-- Se a vítima se aproximar do limite da caixa, gruda e acompanha para bloqueá-la
+					-- Se a vítima tentar se afastar do centro em direção às bordas da caixa
 					if distFromCenter >= effectiveLimit then
-						Root.CFrame = TRoot.CFrame * CFrame.new(0, 3, 0)
+						local escapeDir = offsetFromCenter.Unit
+						-- Posiciona o player exatamente ENTRE a caixa (centro) e a vítima, bloqueando a fuga
+						local blockingPos = boxCenter + (escapeDir * math.clamp(distFromCenter - 1.5, 0, BoxSize / 2))
+						
+						Root.CFrame = CFrame.new(blockingPos + Vector3.new(0, 2, 0), victimPos)
 						Root.AssemblyLinearVelocity = TRoot.AssemblyLinearVelocity
 						Root.AssemblyAngularVelocity = Vector3.zero
 						Root.RotVelocity = Vector3.zero
@@ -1109,8 +1140,8 @@ local function BoxFunc(targetInput, speaker: Player)
 							sethiddenproperty(Root, "PhysicsRepRootRef", InstanceHandle.new(TRoot))
 						end
 					else
-						-- Fica aguardando no centro caso a vítima esteja segura dentro da caixa
-						Root.CFrame = CFrame.new(boxCenter + Vector3.new(0, 5, 0))
+						-- Se estiver segura no interior, o player aguarda próximo ao centro superior
+						Root.CFrame = CFrame.new(boxCenter + Vector3.new(0, 4, 0))
 						Root.AssemblyLinearVelocity = Vector3.zero
 						Root.AssemblyAngularVelocity = Vector3.zero
 						Root.RotVelocity = Vector3.zero
@@ -1129,17 +1160,16 @@ local ScreenGui = Instance.new("ScreenGui", PlayerGui)
 ScreenGui.Name = "UniversalWeldGUI"
 ScreenGui.ResetOnSpawn = false
 
--- Menu principal reduzido em altura e convertido em ScrollingFrame (rolável)
 local MainFrame = Instance.new("ScrollingFrame", ScreenGui)
-MainFrame.Size = UDim2.new(0, 320, 0, 340) -- Altura diminuída para ficar mais compacto
+MainFrame.Size = UDim2.new(0, 320, 0, 340)
 MainFrame.Position = UDim2.new(0.4, 0, 0.3, 0)
 MainFrame.BackgroundColor3 = Color3.fromRGB(245, 130, 32)
 MainFrame.BorderSizePixel = 0
-MainFrame.CanvasSize = UDim2.new(0, 0, 0, 390) -- Tamanho do conteúdo interno para rolagem
+MainFrame.CanvasSize = UDim2.new(0, 0, 0, 390)
 MainFrame.ScrollBarThickness = 6
 Instance.new("UICorner", MainFrame).CornerRadius = UDim.new(0, 8)
 
-local TopBar = Instance.new("TextLabel", ScreenGui) -- Fixado fora do ScrollingFrame para acompanhar o arrasto perfeitamente
+local TopBar = Instance.new("TextLabel", ScreenGui)
 TopBar.Size = UDim2.new(0, 320, 0, 35)
 TopBar.Position = MainFrame.Position
 TopBar.BackgroundColor3 = Color3.fromRGB(220, 110, 20)
@@ -1198,7 +1228,7 @@ ConfigFrame.Position = UDim2.new(0.4, 330, 0.3, 0)
 ConfigFrame.BackgroundColor3 = Color3.fromRGB(245, 130, 32)
 ConfigFrame.BorderSizePixel = 0
 ConfigFrame.Visible = false
-ConfigFrame.CanvasSize = UDim2.new(0, 0, 0, 800) -- Expandido para acomodar o novo campo Box Size
+ConfigFrame.CanvasSize = UDim2.new(0, 0, 0, 800)
 ConfigFrame.ScrollBarThickness = 6
 Instance.new("UICorner", ConfigFrame).CornerRadius = UDim.new(0, 8)
 
@@ -1308,7 +1338,7 @@ FEATURES:
 • Combo: Soars, lifts, and executes fling explosion.
 • Slam: Directional push using 🎯 Pick Dir tool.
 • Torture: Descends slowly from high above and stuns.
-• Box: Traps victim in an invisible box with predictive weld.
+• Box: Traps victim in a visible boundary box, blocking escape.
 • Stop Weld: Releases active welds.]]
 --// PART 5: Configuration Elements, Action Buttons & Initialization
 local AngleLabel = Instance.new("TextLabel", ConfigFrame)
@@ -1610,7 +1640,6 @@ TortureTimeBox.FocusLost:Connect(function()
 	end
 end)
 
--- Campo de configuração para o tamanho da Caixa (Box Size)
 local BoxSizeLabel = Instance.new("TextLabel", ConfigFrame)
 BoxSizeLabel.Size = UDim2.new(0, 190, 0, 20)
 BoxSizeLabel.Position = UDim2.new(0, 15, 0, 645)
@@ -1859,8 +1888,8 @@ PickDirBtn.MouseButton1Click:Connect(function()
 			local result = workspace:Raycast(unitRay.Origin, unitRay.Direction * 1000, raycastParams)
 			if result then
 				SelectedSlamTarget = result.Position
-		        notify("Slam Direction", "Direction locked successfully!")
-			else
+				notify("Slam Direction", "Direction locked successfully!")
+                else
 				SelectedSlamTarget = camera.Focus.Position
 				notify("Slam Direction", "Direction set to camera focus!")
 			end
