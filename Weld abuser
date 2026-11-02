@@ -11,15 +11,17 @@ local OriginalFPDH = workspace.FallenPartsDestroyHeight
 local SoaringAnimTrack = nil
 
 --// Editable Configuration Variables
-local RocketAngle = 0          -- Rocket angle (0 to 360)
-local RocketBaseHeight = -3.5  -- Rocket base height
-local SoaringSpeed = 0.08      -- Soaring teleport delay (seconds)
-local SoaringSequences = 3     -- Soaring telemetry cycles (0 skips directly to void)
-local VoidDropDelay = 4        -- Final Void Drop hold delay (seconds)
-local FireworkInterval = 2     -- Firework/Combo hold interval (seconds)
-local SlamInterval = 0.2       -- Slam hold interval (default 0.2s, editable)
-local SlamOffsetDistance = 3   -- Distance/offset from victim for Slam (editable)
-local SelectedSlamTarget = nil -- Target Vector3 for directional Slam
+local RocketAngle = 0             -- Rocket angle (0 to 360)
+local RocketBaseHeight = -3.5     -- Rocket base height
+local MagicCarpetHeight = 5.0     -- Magic Carpet height offset
+local SoaringSpeed = 0.08         -- Soaring teleport delay (seconds)
+local SoaringSequences = 3        -- Soaring telemetry cycles (0 skips directly to void)
+local VoidDropDelay = 4           -- Final Void Drop hold delay (seconds)
+local FireworkInterval = 2        -- Firework/Combo hold interval (seconds)
+local SlamInterval = 0.2          -- Slam hold interval (default 0.2s, editable)
+local SlamOffsetDistance = 3      -- Distance/offset from victim for Slam (editable)
+local SelectedSlamTarget = nil    -- Target Vector3 for directional Slam
+local SelectedMagicTarget = nil   -- Target Vector3 for directional Magic Carpet velocity
 
 --// Safe Notification Function
 local function notify(title, text)
@@ -377,9 +379,9 @@ local function Rocket(targetInput, speaker: Player, customVelocity, customTime)
 	end)
 end
 
---// Magic Carpet Function (Temporary exact copy of Rocket)
+--// Magic Carpet Function (Uses MagicCarpetHeight offset & supports custom directional velocity without changing position/angle)
 local function MagicCarpet(targetInput, speaker: Player, customVelocity, customTime)
-	if not targetInput or targetInput == "" then return notify('Player Required', 'No target provided for Magic carpet!') end
+	if not targetInput or targetInput == "" then return notify('Player Required', 'No target provided for Magic Carpet!') end
 
 	resolveTarget(targetInput, speaker, function(v)
 		local TPlayer = Players:FindFirstChild(v)
@@ -414,10 +416,21 @@ local function MagicCarpet(targetInput, speaker: Player, customVelocity, customT
 					if connection then connection:Disconnect() end
 					return
 				end
-				Root.CFrame = TRoot.CFrame * CFrame.new(0, RocketBaseHeight, 0) * CFrame.Angles(math.rad(RocketAngle), 0, 0)
+				-- Keeps standard position and angle relative to target using MagicCarpetHeight
+				Root.CFrame = TRoot.CFrame * CFrame.new(0, MagicCarpetHeight, 0) * CFrame.Angles(math.rad(RocketAngle), 0, 0)
 				
 				local velPower = (customVelocity and customVelocity ~= 0) and customVelocity or 0
-				Root.AssemblyLinearVelocity = Vector3.new(0, velPower, 0)
+				local moveDir = Vector3.new(0, velPower, 0)
+
+				-- Directs velocity if a target point is picked, without shifting position or angle
+				if SelectedMagicTarget then
+					local dir = (SelectedMagicTarget - Root.Position)
+					if dir.Magnitude > 0.1 then
+						moveDir = dir.Unit * math.abs(velPower)
+					end
+				end
+
+				Root.AssemblyLinearVelocity = moveDir
 				Root.AssemblyAngularVelocity = Vector3.zero
 				Root.RotVelocity = Vector3.zero
 				
@@ -915,7 +928,7 @@ ConfigFrame.Position = UDim2.new(0.4, 330, 0.3, 0)
 ConfigFrame.BackgroundColor3 = Color3.fromRGB(35, 42, 54)
 ConfigFrame.BorderSizePixel = 0
 ConfigFrame.Visible = false
-ConfigFrame.CanvasSize = UDim2.new(0, 0, 0, 620)
+ConfigFrame.CanvasSize = UDim2.new(0, 0, 0, 660)
 ConfigFrame.ScrollBarThickness = 6
 Instance.new("UICorner", ConfigFrame).CornerRadius = UDim.new(0, 8)
 
@@ -996,7 +1009,7 @@ InfoText.Text = [[TARGET COMMANDS:
 FEATURES:
 • Soaring beast: Teleports around target then flings to void.
 • Rocket: Launches user and target up with Velocity.
-• Magic Carpet: Cloned Rocket function.
+• Magic Carpet: Floats at offset 5.0 with directional velocity.
 • Firework: Lifts target and explodes with fling.
 • Combo: Soars, lifts, and executes fling explosion.
 • Slam: Directional push using 🎯 Pick Dir tool.
@@ -1077,9 +1090,38 @@ PlusBtn.MouseButton1Click:Connect(function()
 	HeightDisplay.Text = string.format("%.1f", RocketBaseHeight)
 end)
 
+--// Magic Carpet Height Config UI
+local CarpetHeightLabel = Instance.new("TextLabel", ConfigFrame)
+CarpetHeightLabel.Size = UDim2.new(0, 190, 0, 20)
+CarpetHeightLabel.Position = UDim2.new(0, 15, 0, 165)
+CarpetHeightLabel.BackgroundTransparency = 1
+CarpetHeightLabel.Text = "Magic Carpet Height Offset:"
+CarpetHeightLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+CarpetHeightLabel.TextSize = 12
+CarpetHeightLabel.TextXAlignment = Enum.TextXAlignment.Left
+
+local CarpetHeightBox = Instance.new("TextBox", ConfigFrame)
+CarpetHeightBox.Size = UDim2.new(0, 190, 0, 28)
+CarpetHeightBox.Position = UDim2.new(0, 15, 0, 188)
+CarpetHeightBox.BackgroundColor3 = Color3.fromRGB(50, 62, 80)
+CarpetHeightBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+CarpetHeightBox.Text = tostring(MagicCarpetHeight)
+CarpetHeightBox.TextSize = 13
+Instance.new("UICorner", CarpetHeightBox).CornerRadius = UDim.new(0, 6)
+
+CarpetHeightBox.FocusLost:Connect(function()
+	local val = tonumber(CarpetHeightBox.Text)
+	if val then
+		MagicCarpetHeight = val
+		CarpetHeightBox.Text = tostring(val)
+	else
+		CarpetHeightBox.Text = tostring(MagicCarpetHeight)
+	end
+end)
+
 local SpeedLabel = Instance.new("TextLabel", ConfigFrame)
 SpeedLabel.Size = UDim2.new(0, 190, 0, 20)
-SpeedLabel.Position = UDim2.new(0, 15, 0, 165)
+SpeedLabel.Position = UDim2.new(0, 15, 0, 225)
 SpeedLabel.BackgroundTransparency = 1
 SpeedLabel.Text = "Soaring Speed (Delay s):"
 SpeedLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
@@ -1088,7 +1130,7 @@ SpeedLabel.TextXAlignment = Enum.TextXAlignment.Left
 
 local SpeedBox = Instance.new("TextBox", ConfigFrame)
 SpeedBox.Size = UDim2.new(0, 190, 0, 28)
-SpeedBox.Position = UDim2.new(0, 15, 0, 188)
+SpeedBox.Position = UDim2.new(0, 15, 0, 248)
 SpeedBox.BackgroundColor3 = Color3.fromRGB(50, 62, 80)
 SpeedBox.TextColor3 = Color3.fromRGB(255, 255, 255)
 SpeedBox.Text = tostring(SoaringSpeed)
@@ -1107,7 +1149,7 @@ end)
 
 local SeqLabel = Instance.new("TextLabel", ConfigFrame)
 SeqLabel.Size = UDim2.new(0, 190, 0, 20)
-SeqLabel.Position = UDim2.new(0, 15, 0, 225)
+SeqLabel.Position = UDim2.new(0, 15, 0, 285)
 SeqLabel.BackgroundTransparency = 1
 SeqLabel.Text = "Soaring Sequences (0 = Void):"
 SeqLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
@@ -1116,7 +1158,7 @@ SeqLabel.TextXAlignment = Enum.TextXAlignment.Left
 
 local SeqBox = Instance.new("TextBox", ConfigFrame)
 SeqBox.Size = UDim2.new(0, 190, 0, 28)
-SeqBox.Position = UDim2.new(0, 15, 0, 248)
+SeqBox.Position = UDim2.new(0, 15, 0, 308)
 SeqBox.BackgroundColor3 = Color3.fromRGB(50, 62, 80)
 SeqBox.TextColor3 = Color3.fromRGB(255, 255, 255)
 SeqBox.Text = tostring(SoaringSequences)
@@ -1135,7 +1177,7 @@ end)
 
 local DelayLabel = Instance.new("TextLabel", ConfigFrame)
 DelayLabel.Size = UDim2.new(0, 190, 0, 20)
-DelayLabel.Position = UDim2.new(0, 15, 0, 285)
+DelayLabel.Position = UDim2.new(0, 15, 0, 345)
 DelayLabel.BackgroundTransparency = 1
 DelayLabel.Text = "Void Drop Delay (s):"
 DelayLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
@@ -1144,7 +1186,7 @@ DelayLabel.TextXAlignment = Enum.TextXAlignment.Left
 
 local DelayBox = Instance.new("TextBox", ConfigFrame)
 DelayBox.Size = UDim2.new(0, 190, 0, 28)
-DelayBox.Position = UDim2.new(0, 15, 0, 308)
+DelayBox.Position = UDim2.new(0, 15, 0, 368)
 DelayBox.BackgroundColor3 = Color3.fromRGB(50, 62, 80)
 DelayBox.TextColor3 = Color3.fromRGB(255, 255, 255)
 DelayBox.Text = tostring(VoidDropDelay)
@@ -1163,7 +1205,7 @@ end)
 
 local FireworkLabel = Instance.new("TextLabel", ConfigFrame)
 FireworkLabel.Size = UDim2.new(0, 190, 0, 20)
-FireworkLabel.Position = UDim2.new(0, 15, 0, 345)
+FireworkLabel.Position = UDim2.new(0, 15, 0, 405)
 FireworkLabel.BackgroundTransparency = 1
 FireworkLabel.Text = "Firework/Combo Interval (s):"
 FireworkLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
@@ -1172,7 +1214,7 @@ FireworkLabel.TextXAlignment = Enum.TextXAlignment.Left
 
 local FireworkBox = Instance.new("TextBox", ConfigFrame)
 FireworkBox.Size = UDim2.new(0, 190, 0, 28)
-FireworkBox.Position = UDim2.new(0, 15, 0, 368)
+FireworkBox.Position = UDim2.new(0, 15, 0, 428)
 FireworkBox.BackgroundColor3 = Color3.fromRGB(50, 62, 80)
 FireworkBox.TextColor3 = Color3.fromRGB(255, 255, 255)
 FireworkBox.Text = tostring(FireworkInterval)
@@ -1191,7 +1233,7 @@ end)
 
 local SlamIntervalLabel = Instance.new("TextLabel", ConfigFrame)
 SlamIntervalLabel.Size = UDim2.new(0, 190, 0, 20)
-SlamIntervalLabel.Position = UDim2.new(0, 15, 0, 405)
+SlamIntervalLabel.Position = UDim2.new(0, 15, 0, 465)
 SlamIntervalLabel.BackgroundTransparency = 1
 SlamIntervalLabel.Text = "Slam Interval (s):"
 SlamIntervalLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
@@ -1200,7 +1242,7 @@ SlamIntervalLabel.TextXAlignment = Enum.TextXAlignment.Left
 
 local SlamIntervalBox = Instance.new("TextBox", ConfigFrame)
 SlamIntervalBox.Size = UDim2.new(0, 190, 0, 28)
-SlamIntervalBox.Position = UDim2.new(0, 15, 0, 428)
+SlamIntervalBox.Position = UDim2.new(0, 15, 0, 488)
 SlamIntervalBox.BackgroundColor3 = Color3.fromRGB(50, 62, 80)
 SlamIntervalBox.TextColor3 = Color3.fromRGB(255, 255, 255)
 SlamIntervalBox.Text = tostring(SlamInterval)
@@ -1219,7 +1261,7 @@ end)
 
 local OffsetLabel = Instance.new("TextLabel", ConfigFrame)
 OffsetLabel.Size = UDim2.new(0, 190, 0, 20)
-OffsetLabel.Position = UDim2.new(0, 15, 0, 465)
+OffsetLabel.Position = UDim2.new(0, 15, 0, 525)
 OffsetLabel.BackgroundTransparency = 1
 OffsetLabel.Text = "Slam Offset Distance:"
 OffsetLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
@@ -1228,7 +1270,7 @@ OffsetLabel.TextXAlignment = Enum.TextXAlignment.Left
 
 local OffsetBox = Instance.new("TextBox", ConfigFrame)
 OffsetBox.Size = UDim2.new(0, 190, 0, 28)
-OffsetBox.Position = UDim2.new(0, 15, 0, 488)
+OffsetBox.Position = UDim2.new(0, 15, 0, 548)
 OffsetBox.BackgroundColor3 = Color3.fromRGB(50, 62, 80)
 OffsetBox.TextColor3 = Color3.fromRGB(255, 255, 255)
 OffsetBox.Text = tostring(SlamOffsetDistance)
@@ -1301,37 +1343,24 @@ createButton("Rocket", 140, 290, 15, function(target)
 	Rocket(target, LocalPlayer, velVal, timeVal)
 end)
 
-createButton("Magic Carpet", 170, 290, 15, function(target)
+createButton("Magic Carpet", 170, 195, 15, function(target)
 	local velVal = tonumber(VelocityBox.Text)
 	local timeVal = tonumber(ReturnTimeBox.Text) or 0.5
 	MagicCarpet(target, LocalPlayer, velVal, timeVal)
 end)
 
-createButton("Firework (Lift & Fling)", 200, 290, 15, function(target)
-	Firework(target, LocalPlayer)
-end)
+local MagicPickDirBtn = Instance.new("TextButton", MainFrame)
+MagicPickDirBtn.Size = UDim2.new(0, 90, 0, 26)
+MagicPickDirBtn.Position = UDim2.new(0, 215, 0, 170)
+MagicPickDirBtn.BackgroundColor3 = Color3.fromRGB(80, 100, 130)
+MagicPickDirBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+MagicPickDirBtn.Text = "🎯 Pick Dir"
+MagicPickDirBtn.TextSize = 12
+Instance.new("UICorner", MagicPickDirBtn).CornerRadius = UDim.new(0, 6)
 
-createButton("Combo (Soaring + Lift + Fling)", 230, 290, 15, function(target)
-	Combo(target, LocalPlayer)
-end)
-
-createButton("Slam (Directional)", 260, 195, 15, function(target)
-	local velVal = tonumber(VelocityBox.Text) or 200
-	Slam(target, LocalPlayer, velVal)
-end)
-
-local PickDirBtn = Instance.new("TextButton", MainFrame)
-PickDirBtn.Size = UDim2.new(0, 90, 0, 26)
-PickDirBtn.Position = UDim2.new(0, 215, 0, 260)
-PickDirBtn.BackgroundColor3 = Color3.fromRGB(80, 100, 130)
-PickDirBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-PickDirBtn.Text = "🎯 Pick Dir"
-PickDirBtn.TextSize = 12
-Instance.new("UICorner", PickDirBtn).CornerRadius = UDim.new(0, 6)
-
-PickDirBtn.MouseButton1Click:Connect(function()
-	SelectedSlamTarget = nil
-	notify("Slam Direction", "Click anywhere in the world to set launch direction!")
+MagicPickDirBtn.MouseButton1Click:Connect(function()
+	SelectedMagicTarget = nil
+	notify("Magic Carpet Dir", "Click anywhere in the world to set velocity direction!")
 	local mouseConn
 	mouseConn = UserInputService.InputBegan:Connect(function(input)
 		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
@@ -1339,8 +1368,8 @@ PickDirBtn.MouseButton1Click:Connect(function()
 			local camera = workspace.CurrentCamera
 			local mouse = LocalPlayer:GetMouse()
 			local unitRay = camera:ScreenPointToRay(mouse.X, mouse.Y)
-			local raycastParams = RaycastParams.new()
-			raycastParams.FilterType = Enum.RaycastFilterType.Exclude
+			local raycastParams = RaycastParams.New()
+            raycastParams.FilterType = Enum.RaycastFilterType.Exclude
 			raycastParams.FilterDescendantsInstances = {LocalPlayer.Character}
 			local result = workspace:Raycast(unitRay.Origin, unitRay.Direction * 1000, raycastParams)
 			if result then
@@ -1358,4 +1387,4 @@ createButton("Stop Weld (Turn Off)", 290, 290, 15, function()
 	StopWeld()
 end)
 
-notify("Universal Weld", "Magic Carpet function added successfully!")
+notify("Universal Weld", "Magic Carpet offset set to 5.0 with directional velocity added!")
