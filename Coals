@@ -136,8 +136,14 @@ local function resolveTarget(stringer, speaker, callback)
 end
 
 --// Stop Everything, Release Player and Clear Connections
+local PlatformGUI = nil -- Forward reference for cleanup
 local function StopWeld()
 	stopSoaringAnimation()
+
+	if PlatformGUI then
+		PlatformGUI:Destroy()
+		PlatformGUI = nil
+	end
 
 	if CurrentWeld then
 		if type(CurrentWeld) == "table" and CurrentWeld.Destroy then
@@ -151,7 +157,7 @@ local function StopWeld()
 	workspace.FallenPartsDestroyHeight = OriginalFPDH
 	notify("Welder", "Actions stopped and player released!")
 end
---// PART 2: SoaringBeast & Rocket Functions
+--// PART 2: SoaringBeast, Rocket & Platform Functions
 
 local function SoaringBeast(targetInput, speaker: Player)
 	if not targetInput or targetInput == "" then return notify('Player Required', 'No target provided for Soaring beast!') end
@@ -373,6 +379,82 @@ local function Rocket(targetInput, speaker: Player, customVelocity, customTime)
 
 				notify("Rocket", "Returned to initial position.")
 			end
+		end)
+	end)
+end
+
+local function Platform(targetInput, speaker: Player, onPlatformUIReady)
+	if not targetInput or targetInput == "" then return notify('Player Required', 'No target provided for Platform!') end
+
+	resolveTarget(targetInput, speaker, function(v)
+		local TPlayer = Players:FindFirstChild(v)
+		if not TPlayer or not TPlayer.Character or TPlayer == speaker then return end
+
+		StopWeld()
+
+		local TCharacter = TPlayer.Character
+		local TRoot = TCharacter:WaitForChild("HumanoidRootPart", 2) or TCharacter:FindFirstChild("Torso") or TCharacter:FindFirstChild("UpperTorso")
+		if not TRoot then return end
+
+		local character = speaker.Character
+		if not character then return end
+		local Root = character:WaitForChild("HumanoidRootPart", 2)
+		if not Root then return end
+
+		task.spawn(function()
+			local initialCFrame = Root.CFrame
+			workspace.FallenPartsDestroyHeight = 0/0
+
+			for _, part in pairs(character:GetDescendants()) do
+				if part:IsA("BasePart") then
+					part.CanCollide = false
+					part.Massless = true
+				end
+			end
+
+			local platformRunning = true
+			local currentOffset = RocketBaseHeight
+
+			local connection
+			connection = RunService.Heartbeat:Connect(function()
+				if not platformRunning or not character.Parent or not TRoot.Parent then
+					if connection then connection:Disconnect() end
+					return
+				end
+				Root.CFrame = TRoot.CFrame * CFrame.new(0, currentOffset, 0) * CFrame.Angles(math.rad(RocketAngle), 0, 0)
+				Root.AssemblyLinearVelocity = Vector3.zero
+				Root.AssemblyAngularVelocity = Vector3.zero
+				Root.RotVelocity = Vector3.zero
+				
+				if sethiddenproperty then
+					pcall(function()
+						sethiddenproperty(Root, "PhysicsRepRootPart", TRoot)
+						sethiddenproperty(Root, "PhysicsRepRootRef", InstanceHandle.new(TRoot))
+					end)
+				end
+			end)
+
+			CurrentWeld = {
+				Destroy = function()
+					platformRunning = false
+					if connection then connection:Disconnect() end
+					if Root then
+						Root.CFrame = initialCFrame
+						Root.AssemblyLinearVelocity = Vector3.zero
+						Root.AssemblyAngularVelocity = Vector3.zero
+						Root.RotVelocity = Vector3.zero
+					end
+					workspace.FallenPartsDestroyHeight = OriginalFPDH
+				end
+			}
+
+			if onPlatformUIReady then
+				onPlatformUIReady(function(delta)
+					currentOffset = currentOffset + delta
+				end)
+			end
+
+			notify("Platform", "Platform active on " .. TPlayer.Name)
 		end)
 	end)
 end
@@ -875,6 +957,7 @@ InfoText.Text = [[TARGET COMMANDS:
 FEATURES:
 • Soaring beast: Teleports around target then flings to void.
 • Rocket: Launches user and target up with Velocity.
+• Platform: Continuous follow without velocity/time.
 • Firework: Lifts target and explodes with fling.
 • Combo: Soars, lifts, and executes fling explosion.
 • Slam: Directional push using 🎯 Pick Dir tool.
@@ -1124,14 +1207,56 @@ OffsetBox.FocusLost:Connect(function()
 end)
 
 local TargetBox = Instance.new("TextBox", MainFrame)
-TargetBox.Size = UDim2.new(0, 290, 0, 30)
+TargetBox.Size = UDim2.new(0, 215, 0, 30)
 TargetBox.Position = UDim2.new(0, 15, 0, 42)
 TargetBox.BackgroundColor3 = Color3.fromRGB(50, 62, 80)
 TargetBox.TextColor3 = Color3.fromRGB(255, 255, 255)
-TargetBox.PlaceholderText = "Target: Name, nearest, farthest, random"
+TargetBox.PlaceholderText = "Target: Name, nearest..."
 TargetBox.Text = ""
 TargetBox.TextSize = 12
 Instance.new("UICorner", TargetBox).CornerRadius = UDim.new(0, 6)
+
+local GiveToolBtn = Instance.new("TextButton", MainFrame)
+GiveToolBtn.Size = UDim2.new(0, 65, 0, 30)
+GiveToolBtn.Position = UDim2.new(0, 240, 0, 42)
+GiveToolBtn.BackgroundColor3 = Color3.fromRGB(80, 100, 130)
+GiveToolBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+GiveToolBtn.Text = "🎯 Tool"
+GiveToolBtn.TextSize = 12
+Instance.new("UICorner", GiveToolBtn).CornerRadius = UDim.new(0, 6)
+
+GiveToolBtn.MouseButton1Click:Connect(function()
+	local backpack = LocalPlayer:FindFirstChildOfClass("Backpack")
+	local character = LocalPlayer.Character
+	if not backpack or not character then return end
+	
+	if backpack:FindFirstChild("Select target") or (character and character:FindFirstChild("Select target")) then
+		notify("Select target", "You already have the tool!")
+		return
+	end
+	
+	local tool = Instance.new("Tool")
+	tool.Name = "Select target"
+	tool.RequiresHandle = false
+	
+	tool.Activated:Connect(function()
+		local mouse = LocalPlayer:GetMouse()
+		local targetPart = mouse.Target
+		if targetPart then
+			local model = targetPart:FindFirstAncestorOfClass("Model")
+			if model then
+				local player = Players:GetPlayerFromCharacter(model)
+				if player and player ~= LocalPlayer then
+					TargetBox.Text = player.Name
+					notify("Target Selected", "Target set to: " .. player.Name)
+				end
+			end
+		end
+	end)
+	
+	tool.Parent = backpack
+	notify("Select target", "Tool added to your backpack!")
+end)
 
 local VelocityBox = Instance.new("TextBox", MainFrame)
 VelocityBox.Size = UDim2.new(0, 140, 0, 26)
@@ -1173,10 +1298,98 @@ createButton("Soaring beast", 110, 290, 15, function(target)
 	SoaringBeast(target, LocalPlayer)
 end)
 
-createButton("Rocket", 143, 290, 15, function(target)
+createButton("Rocket", 143, 195, 15, function(target)
 	local velVal = tonumber(VelocityBox.Text) or 0
 	local timeVal = tonumber(ReturnTimeBox.Text) or 0.5
 	Rocket(target, LocalPlayer, velVal, timeVal)
+end)
+
+--// Botão Mode ao lado de Rocket
+local ModeBtn = Instance.new("TextButton", MainFrame)
+ModeBtn.Size = UDim2.new(0, 90, 0, 28)
+ModeBtn.Position = UDim2.new(0, 215, 0, 143)
+ModeBtn.BackgroundColor3 = Color3.fromRGB(80, 100, 130)
+ModeBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+ModeBtn.Text = "Mode: Rocket"
+ModeBtn.TextSize = 11
+Instance.new("UICorner", ModeBtn).CornerRadius = UDim.new(0, 6)
+
+local currentRocketMode = "Rocket" -- "Rocket" ou "Platform"
+
+ModeBtn.MouseButton1Click:Connect(function()
+	if currentRocketMode == "Rocket" then
+		currentRocketMode = "Platform"
+		ModeBtn.Text = "Mode: Platform"
+		notify("Mode", "Switched to Platform mode!")
+	else
+		currentRocketMode = "Rocket"
+		ModeBtn.Text = "Mode: Rocket"
+		notify("Mode", "Switched to Rocket mode!")
+	end
+end)
+
+-- Sobrescreve a ação do botão Rocket para respeitar o Mode selecionado
+local originalRocketBtnClick = MainFrame:GetChildren()
+-- Vamos atualizar o clique do botão Rocket existente buscando ele ou recriando
+-- Como o createButton do Rocket foi o 2º, vamos ajustar diretamente:
+for _, child in ipairs(MainFrame:GetChildren()) do
+	if child:IsA("TextButton") and child.Text == "Rocket" then
+		-- Desconecta cliques anteriores limpando e recriando
+		child:Destroy()
+	end
+end
+
+local RocketBtn = Instance.new("TextButton", MainFrame)
+RocketBtn.Size = UDim2.new(0, 195, 0, 28)
+RocketBtn.Position = UDim2.new(0, 15, 0, 143)
+RocketBtn.BackgroundColor3 = Color3.fromRGB(66, 83, 103)
+RocketBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+RocketBtn.Text = "Rocket"
+RocketBtn.TextSize = 13
+Instance.new("UICorner", RocketBtn).CornerRadius = UDim.new(0, 6)
+
+RocketBtn.MouseButton1Click:Connect(function()
+	local target = TargetBox.Text
+	if currentRocketMode == "Rocket" then
+		local velVal = tonumber(VelocityBox.Text) or 0
+		local timeVal = tonumber(ReturnTimeBox.Text) or 0.5
+		Rocket(target, LocalPlayer, velVal, timeVal)
+	else
+		-- Modo Platform
+		Platform(target, LocalPlayer, function(adjustOffsetCallback)
+			if PlatformGUI then PlatformGUI:Destroy() end
+			
+			PlatformGUI = Instance.new("ScreenGui", PlayerGui)
+			PlatformGUI.Name = "PlatformControls"
+			PlatformGUI.ResetOnSpawn = false
+			
+			local upBtn = Instance.new("TextButton", PlatformGUI)
+			upBtn.Size = UDim2.new(0, 90, 0, 35)
+			upBtn.Position = UDim2.new(0.4, -100, 0.85, 0)
+			upBtn.BackgroundColor3 = Color3.fromRGB(66, 83, 103)
+			upBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+			upBtn.Text = "⬆️ Up (+0.25)"
+			upBtn.TextSize = 12
+			Instance.new("UICorner", upBtn).CornerRadius = UDim.new(0, 6)
+			
+			local downBtn = Instance.new("TextButton", PlatformGUI)
+			downBtn.Size = UDim2.new(0, 90, 0, 35)
+			downBtn.Position = UDim2.new(0.4, 10, 0.85, 0)
+			downBtn.BackgroundColor3 = Color3.fromRGB(66, 83, 103)
+			downBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+			downBtn.Text = "⬇️ Down (-0.25)"
+			downBtn.TextSize = 12
+			Instance.new("UICorner", downBtn).CornerRadius = UDim.new(0, 6)
+			
+			upBtn.MouseButton1Click:Connect(function()
+				adjustOffsetCallback(0.25)
+			end)
+			
+			downBtn.MouseButton1Click:Connect(function()
+				adjustOffsetCallback(-0.25)
+			end)
+		end)
+	end
 end)
 
 createButton("Firework (Lift & Fling)", 176, 290, 15, function(target)
@@ -1230,4 +1443,4 @@ createButton("Stop Weld (Turn Off)", 275, 290, 15, function()
 	StopWeld()
 end)
 
-notify("Universal Weld", "Script updated successfully!")
+notify("Universal Weld", "Script updated successfully with Platform mode!")
