@@ -26,10 +26,6 @@ local SelectedSlamTarget = nil -- Target Vector3 for directional Slam
 local TortureHeight = 15       -- Starting height above the victim for Torture
 local TortureDescentTime = 1.5 -- Time in seconds it takes to descend to the victim
 
---// Jail Configuration Variables
-local JailBoxSize = 10         -- Tamanho/Raio da esfera invisível da caixa (studs)
-local JailLeadStuds = 3        -- Studs de antecedência para prender a vítima antes de encostar na borda
-
 --// Safe Notification Function
 local function notify(title, text)
 	pcall(function()
@@ -149,7 +145,7 @@ local function resolveTarget(stringer, speaker, callback)
 		return
 	end
 
-	, found = {}
+	local found = {}
 	if stringer == "all" then
 		for _, p in ipairs(Players:GetPlayers()) do table.insert(found, p.Name) end
 	elseif stringer == "others" then
@@ -586,7 +582,7 @@ local function SlamDrop(targetInput, speaker: Player, customVelocity)
 		end)
 	end)
 end
---// PART 3: Firework, Combo, Slam, Torture & Jail Functions
+--// PART 3: Firework, Combo, Slam & Torture Functions
 
 local function Firework(targetInput, speaker: Player)
 	if not targetInput or targetInput == "" then return notify('Player Required', 'No target provided for Firework!') end
@@ -1037,90 +1033,6 @@ local function Torture(targetInput, speaker: Player, customVelocity)
 		end)
 	end)
 end
-
-local function Jail(targetInput, speaker: Player)
-	if not targetInput or targetInput == "" then return notify('Player Required', 'No target provided for Jail!') end
-
-	resolveTarget(targetInput, speaker, function(v)
-		local TPlayer = Players:FindFirstChild(v)
-		if not TPlayer or not TPlayer.Character or TPlayer == speaker then return end
-
-		StopWeld()
-
-		local TCharacter = TPlayer.Character
-		local TRoot = TCharacter:WaitForChild("HumanoidRootPart", 2) or TCharacter:FindFirstChild("Torso") or TCharacter:FindFirstChild("UpperTorso")
-		if not TRoot then return end
-
-		local character = speaker.Character
-		if not character then return end
-		local Root = character:WaitForChild("HumanoidRootPart", 2)
-		if not Root then return end
-
-		task.spawn(function()
-			local initialCFrame = Root.CFrame
-			workspace.FallenPartsDestroyHeight = 0/0
-
-			for _, part in pairs(character:GetDescendants()) do
-				if part:IsA("BasePart") then
-					part.CanCollide = false
-					part.Massless = true
-				end
-			end
-
-			-- Define o centro da caixa invisível na posição inicial da vítima
-			local centerPosition = TRoot.Position
-			local jailRunning = true
-
-			CurrentWeld = {
-				Destroy = function()
-					jailRunning = false
-					if Root then
-						Root.CFrame = initialCFrame
-						Root.AssemblyLinearVelocity = Vector3.zero
-						Root.AssemblyAngularVelocity = Vector3.zero
-						Root.RotVelocity = Vector3.zero
-					end
-					workspace.FallenPartsDestroyHeight = OriginalFPDH
-				end
-			}
-
-			notify("Jail", "Jail active on " .. TPlayer.Name .. "!")
-
-			local connection
-			connection = RunService.Heartbeat:Connect(function()
-				if not jailRunning or not character.Parent or not TRoot.Parent then
-					if connection then connection:Disconnect() end
-					return
-				end
-
-				pcall(function()
-					local victimPos = TRoot.Position
-					local distFromCenter = (victimPos - centerPosition).Magnitude
-					local effectiveLimit = math.max(JailBoxSize - JailLeadStuds, 1)
-
-					-- Se a vítima se aproximar do limite estipulado pela antecedência, o player aplica weld e segue o movimento dela para bloqueá-la
-					if distFromCenter >= effectiveLimit then
-						Root.CFrame = TRoot.CFrame * CFrame.new(0, 3, 0)
-						Root.AssemblyLinearVelocity = TRoot.AssemblyLinearVelocity
-						Root.AssemblyAngularVelocity = Vector3.zero
-						Root.RotVelocity = Vector3.zero
-
-						if sethiddenproperty then
-							sethiddenproperty(Root, "PhysicsRepRootPart", TRoot)
-							sethiddenproperty(Root, "PhysicsRepRootRef", InstanceHandle.new(TRoot))
-						end
-					else
-						-- Enquanto estiver dentro da caixa, o player fica guardando o centro/posição segura próxima
-						Root.CFrame = CFrame.new(centerPosition + Vector3.new(0, 5, 0))
-						Root.AssemblyLinearVelocity = Vector3.zero
-						Root.AssemblyAngularVelocity = Vector3.zero
-						Root.RotVelocity = Vector3.zero
-					end
-				end)
-			end)
-		end)
-	end)
-end
 --// PART 4: Windows & Info Panel Setup
 local UserInputService = game:GetService("UserInputService")
 local LocalPlayer = game:GetService("Players").LocalPlayer
@@ -1131,7 +1043,7 @@ ScreenGui.Name = "UniversalWeldGUI"
 ScreenGui.ResetOnSpawn = false
 
 local MainFrame = Instance.new("Frame", ScreenGui)
-MainFrame.Size = UDim2.new(0, 320, 0, 425) -- Expandido para acomodar o botão Jail
+MainFrame.Size = UDim2.new(0, 320, 0, 390)
 MainFrame.Position = UDim2.new(0.4, 0, 0.3, 0)
 MainFrame.BackgroundColor3 = Color3.fromRGB(245, 130, 32)
 MainFrame.BorderSizePixel = 0
@@ -1194,7 +1106,7 @@ ConfigFrame.Position = UDim2.new(0.4, 330, 0.3, 0)
 ConfigFrame.BackgroundColor3 = Color3.fromRGB(245, 130, 32)
 ConfigFrame.BorderSizePixel = 0
 ConfigFrame.Visible = false
-ConfigFrame.CanvasSize = UDim2.new(0, 0, 0, 900) -- Expandido para incluir os campos da função Jail
+ConfigFrame.CanvasSize = UDim2.new(0, 0, 0, 750)
 ConfigFrame.ScrollBarThickness = 6
 Instance.new("UICorner", ConfigFrame).CornerRadius = UDim.new(0, 8)
 
@@ -1304,7 +1216,6 @@ FEATURES:
 • Combo: Soars, lifts, and executes fling explosion.
 • Slam: Directional push using 🎯 Pick Dir tool.
 • Torture: Descends slowly from high above and stuns victim.
-• Jail: Traps victim in an invisible sphere with predictive weld.
 • Stop Weld: Releases active welds.]]
 --// PART 5: Configuration Elements, UI Buttons & Initialization
 local AngleLabel = Instance.new("TextLabel", ConfigFrame)
@@ -1606,63 +1517,6 @@ TortureTimeBox.FocusLost:Connect(function()
 	end
 end)
 
--- Novos campos de configuração para a função Jail
-local JailSizeLabel = Instance.new("TextLabel", ConfigFrame)
-JailSizeLabel.Size = UDim2.new(0, 190, 0, 20)
-JailSizeLabel.Position = UDim2.new(0, 15, 0, 645)
-JailSizeLabel.BackgroundTransparency = 1
-JailSizeLabel.Text = "Jail Box Size:"
-JailSizeLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-JailSizeLabel.TextSize = 12
-JailSizeLabel.TextXAlignment = Enum.TextXAlignment.Left
-
-local JailSizeBox = Instance.new("TextBox", ConfigFrame)
-JailSizeBox.Size = UDim2.new(0, 190, 0, 28)
-JailSizeBox.Position = UDim2.new(0, 15, 0, 668)
-JailSizeBox.BackgroundColor3 = Color3.fromRGB(220, 110, 20)
-JailSizeBox.TextColor3 = Color3.fromRGB(255, 255, 255)
-JailSizeBox.Text = tostring(JailBoxSize)
-JailSizeBox.TextSize = 13
-Instance.new("UICorner", JailSizeBox).CornerRadius = UDim.new(0, 6)
-
-JailSizeBox.FocusLost:Connect(function()
-	local val = tonumber(JailSizeBox.Text)
-	if val and val > 0 then
-		JailBoxSize = val
-		JailSizeBox.Text = tostring(val)
-	else
-		JailSizeBox.Text = tostring(JailBoxSize)
-	end
-end)
-
-local JailLeadLabel = Instance.new("TextLabel", ConfigFrame)
-JailLeadLabel.Size = UDim2.new(0, 190, 0, 20)
-JailLeadLabel.Position = UDim2.new(0, 15, 0, 705)
-JailLeadLabel.BackgroundTransparency = 1
-JailLeadLabel.Text = "Jail Lead Studs:"
-JailLeadLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-JailLeadLabel.TextSize = 12
-JailLeadLabel.TextXAlignment = Enum.TextXAlignment.Left
-
-local JailLeadBox = Instance.new("TextBox", ConfigFrame)
-JailLeadBox.Size = UDim2.new(0, 190, 0, 28)
-JailLeadBox.Position = UDim2.new(0, 15, 0, 728)
-JailLeadBox.BackgroundColor3 = Color3.fromRGB(220, 110, 20)
-JailLeadBox.TextColor3 = Color3.fromRGB(255, 255, 255)
-JailLeadBox.Text = tostring(JailLeadStuds)
-JailLeadBox.TextSize = 13
-Instance.new("UICorner", JailLeadBox).CornerRadius = UDim.new(0, 6)
-
-JailLeadBox.FocusLost:Connect(function()
-	local val = tonumber(JailLeadBox.Text)
-	if val and val >= 0 then
-		JailLeadStuds = val
-		JailLeadBox.Text = tostring(val)
-	else
-		JailLeadBox.Text = tostring(JailLeadStuds)
-	end
-end)
-
 local TargetBox = Instance.new("TextBox", MainFrame)
 TargetBox.Size = UDim2.new(0, 215, 0, 30)
 TargetBox.Position = UDim2.new(0, 15, 0, 42)
@@ -1892,13 +1746,9 @@ PickDirBtn.MouseButton1Click:Connect(function()
 	end)
 end)
 
-createButton("Torture", 275, 138, 15, function(target)
+createButton("Torture", 275, 290, 15, function(target)
 	local velVal = tonumber(VelocityBox.Text) or 0
 	Torture(target, LocalPlayer, velVal)
-end)
-
-createButton("Jail", 275, 138, 167, function(target)
-	Jail(target, LocalPlayer)
 end)
 
 createButton("Stop Weld", 308, 290, 15, function()
