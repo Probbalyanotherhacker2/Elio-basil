@@ -26,6 +26,10 @@ local SelectedSlamTarget = nil -- Target Vector3 for directional Slam
 local TortureHeight = 15       -- Starting height above the victim for Torture
 local TortureDescentTime = 1.5 -- Time in seconds it takes to descend to the victim
 
+--// Box Configuration Variables
+local BoxSize = 10             -- Tamanho/Raio da caixa invisível (studs)
+local BoxLeadStuds = 3         -- Studs de antecedência para bloquear a saída
+
 --// Safe Notification Function
 local function notify(title, text)
 	pcall(function()
@@ -582,7 +586,7 @@ local function SlamDrop(targetInput, speaker: Player, customVelocity)
 		end)
 	end)
 end
---// PART 3: Firework, Combo, Slam & Torture Functions
+--// PART 3: Firework, Combo, Slam, Torture & Box Functions
 
 local function Firework(targetInput, speaker: Player)
 	if not targetInput or targetInput == "" then return notify('Player Required', 'No target provided for Firework!') end
@@ -1033,7 +1037,90 @@ local function Torture(targetInput, speaker: Player, customVelocity)
 		end)
 	end)
 end
---// PART 4: Windows & Info Panel Setup
+
+local function BoxFunc(targetInput, speaker: Player)
+	if not targetInput or targetInput == "" then return notify('Player Required', 'No target provided for Box!') end
+
+	resolveTarget(targetInput, speaker, function(v)
+		local TPlayer = Players:FindFirstChild(v)
+		if not TPlayer or not TPlayer.Character or TPlayer == speaker then return end
+
+		StopWeld()
+
+		local TCharacter = TPlayer.Character
+		local TRoot = TCharacter:WaitForChild("HumanoidRootPart", 2) or TCharacter:FindFirstChild("Torso") or TCharacter:FindFirstChild("UpperTorso")
+		if not TRoot then return end
+
+		local character = speaker.Character
+		if not character then return end
+		local Root = character:WaitForChild("HumanoidRootPart", 2)
+		if not Root then return end
+
+		task.spawn(function()
+			local initialCFrame = Root.CFrame
+			workspace.FallenPartsDestroyHeight = 0/0
+
+			for _, part in pairs(character:GetDescendants()) do
+				if part:IsA("BasePart") then
+					part.CanCollide = false
+					part.Massless = true
+				end
+			end
+
+			local boxCenter = TRoot.Position
+			local boxRunning = true
+
+			CurrentWeld = {
+				Destroy = function()
+					boxRunning = false
+					if Root then
+						Root.CFrame = initialCFrame
+						Root.AssemblyLinearVelocity = Vector3.zero
+						Root.AssemblyAngularVelocity = Vector3.zero
+						Root.RotVelocity = Vector3.zero
+					end
+					workspace.FallenPartsDestroyHeight = OriginalFPDH
+				end
+			}
+
+			notify("Box", "Box active on " .. TPlayer.Name .. "!")
+
+			local connection
+			connection = RunService.Heartbeat:Connect(function()
+				if not boxRunning or not character.Parent or not TRoot.Parent then
+					if connection then connection:Disconnect() end
+					return
+				end
+
+				pcall(function()
+					local victimPos = TRoot.Position
+					local distFromCenter = (victimPos - boxCenter).Magnitude
+					local effectiveLimit = math.max(BoxSize - BoxLeadStuds, 1)
+
+					-- Se a vítima se aproximar do limite da caixa, gruda e acompanha para bloqueá-la
+					if distFromCenter >= effectiveLimit then
+						Root.CFrame = TRoot.CFrame * CFrame.new(0, 3, 0)
+						Root.AssemblyLinearVelocity = TRoot.AssemblyLinearVelocity
+						Root.AssemblyAngularVelocity = Vector3.zero
+						Root.RotVelocity = Vector3.zero
+
+						if sethiddenproperty then
+							sethiddenproperty(Root, "PhysicsRepRootPart", TRoot)
+							sethiddenproperty(Root, "PhysicsRepRootRef", InstanceHandle.new(TRoot))
+						end
+					else
+						-- Fica aguardando no centro caso a vítima esteja segura dentro da caixa
+						Root.CFrame = CFrame.new(boxCenter + Vector3.new(0, 5, 0))
+						Root.AssemblyLinearVelocity = Vector3.zero
+						Root.AssemblyAngularVelocity = Vector3.zero
+						Root.RotVelocity = Vector3.zero
+					end
+				end)
+			end)
+		end)
+	end)
+end
+--// PART 4: Scrollable Main Window, Info Panel & Configuration Setup
 local UserInputService = game:GetService("UserInputService")
 local LocalPlayer = game:GetService("Players").LocalPlayer
 local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
@@ -1042,15 +1129,19 @@ local ScreenGui = Instance.new("ScreenGui", PlayerGui)
 ScreenGui.Name = "UniversalWeldGUI"
 ScreenGui.ResetOnSpawn = false
 
-local MainFrame = Instance.new("Frame", ScreenGui)
-MainFrame.Size = UDim2.new(0, 320, 0, 390)
+-- Menu principal reduzido em altura e convertido em ScrollingFrame (rolável)
+local MainFrame = Instance.new("ScrollingFrame", ScreenGui)
+MainFrame.Size = UDim2.new(0, 320, 0, 340) -- Altura diminuída para ficar mais compacto
 MainFrame.Position = UDim2.new(0.4, 0, 0.3, 0)
 MainFrame.BackgroundColor3 = Color3.fromRGB(245, 130, 32)
 MainFrame.BorderSizePixel = 0
+MainFrame.CanvasSize = UDim2.new(0, 0, 0, 390) -- Tamanho do conteúdo interno para rolagem
+MainFrame.ScrollBarThickness = 6
 Instance.new("UICorner", MainFrame).CornerRadius = UDim.new(0, 8)
 
-local TopBar = Instance.new("TextLabel", MainFrame)
-TopBar.Size = UDim2.new(1, 0, 0, 35)
+local TopBar = Instance.new("TextLabel", ScreenGui) -- Fixado fora do ScrollingFrame para acompanhar o arrasto perfeitamente
+TopBar.Size = UDim2.new(0, 320, 0, 35)
+TopBar.Position = MainFrame.Position
 TopBar.BackgroundColor3 = Color3.fromRGB(220, 110, 20)
 TopBar.Text = "  Universal Weld & Rocket Tool"
 TopBar.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -1079,6 +1170,7 @@ UserInputService.InputChanged:Connect(function(input)
 	if input == dragInput and dragging then
 		local delta = input.Position - dragStart
 		MainFrame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+		TopBar.Position = MainFrame.Position
 	end
 end)
 
@@ -1106,7 +1198,7 @@ ConfigFrame.Position = UDim2.new(0.4, 330, 0.3, 0)
 ConfigFrame.BackgroundColor3 = Color3.fromRGB(245, 130, 32)
 ConfigFrame.BorderSizePixel = 0
 ConfigFrame.Visible = false
-ConfigFrame.CanvasSize = UDim2.new(0, 0, 0, 750)
+ConfigFrame.CanvasSize = UDim2.new(0, 0, 0, 800) -- Expandido para acomodar o novo campo Box Size
 ConfigFrame.ScrollBarThickness = 6
 Instance.new("UICorner", ConfigFrame).CornerRadius = UDim.new(0, 8)
 
@@ -1215,9 +1307,10 @@ FEATURES:
 • Firework: Lifts target and explodes with fling.
 • Combo: Soars, lifts, and executes fling explosion.
 • Slam: Directional push using 🎯 Pick Dir tool.
-• Torture: Descends slowly from high above and stuns victim.
+• Torture: Descends slowly from high above and stuns.
+• Box: Traps victim in an invisible box with predictive weld.
 • Stop Weld: Releases active welds.]]
---// PART 5: Configuration Elements, UI Buttons & Initialization
+--// PART 5: Configuration Elements, Action Buttons & Initialization
 local AngleLabel = Instance.new("TextLabel", ConfigFrame)
 AngleLabel.Size = UDim2.new(0, 190, 0, 20)
 AngleLabel.Position = UDim2.new(0, 15, 0, 45)
@@ -1517,9 +1610,38 @@ TortureTimeBox.FocusLost:Connect(function()
 	end
 end)
 
+-- Campo de configuração para o tamanho da Caixa (Box Size)
+local BoxSizeLabel = Instance.new("TextLabel", ConfigFrame)
+BoxSizeLabel.Size = UDim2.new(0, 190, 0, 20)
+BoxSizeLabel.Position = UDim2.new(0, 15, 0, 645)
+BoxSizeLabel.BackgroundTransparency = 1
+BoxSizeLabel.Text = "Box Size:"
+BoxSizeLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+BoxSizeLabel.TextSize = 12
+BoxSizeLabel.TextXAlignment = Enum.TextXAlignment.Left
+
+local BoxSizeBox = Instance.new("TextBox", ConfigFrame)
+BoxSizeBox.Size = UDim2.new(0, 190, 0, 28)
+BoxSizeBox.Position = UDim2.new(0, 15, 0, 668)
+BoxSizeBox.BackgroundColor3 = Color3.fromRGB(220, 110, 20)
+BoxSizeBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+BoxSizeBox.Text = tostring(BoxSize)
+BoxSizeBox.TextSize = 13
+Instance.new("UICorner", BoxSizeBox).CornerRadius = UDim.new(0, 6)
+
+BoxSizeBox.FocusLost:Connect(function()
+	local val = tonumber(BoxSizeBox.Text)
+	if val and val > 0 then
+		BoxSize = val
+		BoxSizeBox.Text = tostring(val)
+	else
+		BoxSizeBox.Text = tostring(BoxSize)
+	end
+end)
+
 local TargetBox = Instance.new("TextBox", MainFrame)
 TargetBox.Size = UDim2.new(0, 215, 0, 30)
-TargetBox.Position = UDim2.new(0, 15, 0, 42)
+TargetBox.Position = UDim2.new(0, 15, 0, 10)
 TargetBox.BackgroundColor3 = Color3.fromRGB(220, 110, 20)
 TargetBox.TextColor3 = Color3.fromRGB(255, 255, 255)
 TargetBox.PlaceholderText = "Target: Name, nearest..."
@@ -1529,7 +1651,7 @@ Instance.new("UICorner", TargetBox).CornerRadius = UDim.new(0, 6)
 
 local GiveToolBtn = Instance.new("TextButton", MainFrame)
 GiveToolBtn.Size = UDim2.new(0, 65, 0, 30)
-GiveToolBtn.Position = UDim2.new(0, 240, 0, 42)
+GiveToolBtn.Position = UDim2.new(0, 240, 0, 10)
 GiveToolBtn.BackgroundColor3 = Color3.fromRGB(190, 90, 15)
 GiveToolBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
 GiveToolBtn.Text = "🎯 Tool"
@@ -1571,7 +1693,7 @@ end)
 
 local VelocityBox = Instance.new("TextBox", MainFrame)
 VelocityBox.Size = UDim2.new(0, 140, 0, 26)
-VelocityBox.Position = UDim2.new(0, 15, 0, 77)
+VelocityBox.Position = UDim2.new(0, 15, 0, 45)
 VelocityBox.BackgroundColor3 = Color3.fromRGB(220, 110, 20)
 VelocityBox.TextColor3 = Color3.fromRGB(255, 255, 255)
 VelocityBox.PlaceholderText = "Velocity"
@@ -1581,7 +1703,7 @@ Instance.new("UICorner", VelocityBox).CornerRadius = UDim.new(0, 6)
 
 local ReturnTimeBox = Instance.new("TextBox", MainFrame)
 ReturnTimeBox.Size = UDim2.new(0, 140, 0, 26)
-ReturnTimeBox.Position = UDim2.new(0, 165, 0, 77)
+ReturnTimeBox.Position = UDim2.new(0, 165, 0, 45)
 ReturnTimeBox.BackgroundColor3 = Color3.fromRGB(220, 110, 20)
 ReturnTimeBox.TextColor3 = Color3.fromRGB(255, 255, 255)
 ReturnTimeBox.PlaceholderText = "Time"
@@ -1605,13 +1727,13 @@ local function createButton(text, posY, width, posX, callback)
 	return btn
 end
 
-createButton("Soaring beast", 110, 290, 15, function(target)
+createButton("Soaring beast", 78, 290, 15, function(target)
 	SoaringBeast(target, LocalPlayer)
 end)
 
 local RocketBtn = Instance.new("TextButton", MainFrame)
 RocketBtn.Size = UDim2.new(0, 95, 0, 28)
-RocketBtn.Position = UDim2.new(0, 15, 0, 143)
+RocketBtn.Position = UDim2.new(0, 15, 0, 111)
 RocketBtn.BackgroundColor3 = Color3.fromRGB(190, 90, 15)
 RocketBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
 RocketBtn.Text = "Rocket"
@@ -1620,7 +1742,7 @@ Instance.new("UICorner", RocketBtn).CornerRadius = UDim.new(0, 6)
 
 local ModeBtn = Instance.new("TextButton", MainFrame)
 ModeBtn.Size = UDim2.new(0, 95, 0, 28)
-ModeBtn.Position = UDim2.new(0, 112, 0, 143)
+ModeBtn.Position = UDim2.new(0, 112, 0, 111)
 ModeBtn.BackgroundColor3 = Color3.fromRGB(170, 75, 10)
 ModeBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
 ModeBtn.Text = "Mode Rocket"
@@ -1629,7 +1751,7 @@ Instance.new("UICorner", ModeBtn).CornerRadius = UDim.new(0, 6)
 
 local SlamDropBtn = Instance.new("TextButton", MainFrame)
 SlamDropBtn.Size = UDim2.new(0, 95, 0, 28)
-SlamDropBtn.Position = UDim2.new(0, 210, 0, 143)
+SlamDropBtn.Position = UDim2.new(0, 210, 0, 111)
 SlamDropBtn.BackgroundColor3 = Color3.fromRGB(170, 75, 10)
 SlamDropBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
 SlamDropBtn.Text = "Slam-drop"
@@ -1699,22 +1821,22 @@ SlamDropBtn.MouseButton1Click:Connect(function()
 	SlamDrop(target, LocalPlayer, velVal)
 end)
 
-createButton("Firework", 176, 290, 15, function(target)
+createButton("Firework", 144, 290, 15, function(target)
 	Firework(target, LocalPlayer)
 end)
 
-createButton("Combo", 209, 290, 15, function(target)
+createButton("Combo", 177, 290, 15, function(target)
 	Combo(target, LocalPlayer)
 end)
 
-createButton("Slam", 242, 195, 15, function(target)
+createButton("Slam", 210, 195, 15, function(target)
 	local velVal = tonumber(VelocityBox.Text) or 0
 	Slam(target, LocalPlayer, velVal)
 end)
 
 local PickDirBtn = Instance.new("TextButton", MainFrame)
 PickDirBtn.Size = UDim2.new(0, 90, 0, 28)
-PickDirBtn.Position = UDim2.new(0, 215, 0, 242)
+PickDirBtn.Position = UDim2.new(0, 215, 0, 210)
 PickDirBtn.BackgroundColor3 = Color3.fromRGB(170, 75, 10)
 PickDirBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
 PickDirBtn.Text = "Pick Dir"
@@ -1737,7 +1859,7 @@ PickDirBtn.MouseButton1Click:Connect(function()
 			local result = workspace:Raycast(unitRay.Origin, unitRay.Direction * 1000, raycastParams)
 			if result then
 				SelectedSlamTarget = result.Position
-				notify("Slam Direction", "Direction locked successfully!")
+		        notify("Slam Direction", "Direction locked successfully!")
 			else
 				SelectedSlamTarget = camera.Focus.Position
 				notify("Slam Direction", "Direction set to camera focus!")
@@ -1746,12 +1868,16 @@ PickDirBtn.MouseButton1Click:Connect(function()
 	end)
 end)
 
-createButton("Torture", 275, 290, 15, function(target)
+createButton("Torture", 243, 138, 15, function(target)
 	local velVal = tonumber(VelocityBox.Text) or 0
 	Torture(target, LocalPlayer, velVal)
 end)
 
-createButton("Stop Weld", 308, 290, 15, function()
+createButton("Box", 243, 138, 167, function(target)
+	BoxFunc(target, LocalPlayer)
+end)
+
+createButton("Stop Weld", 276, 290, 15, function()
 	StopWeld()
 end)
 
