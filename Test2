@@ -28,7 +28,7 @@ local SelectedSlamTarget = nil -- Target Vector3 for directional Slam
 local TortureHeight = 15       -- Starting height above the victim for Torture
 local TortureDescentTime = 1.5 -- Time in seconds it takes to descend to the victim
 
---// Box Configuration Variables (Novos tamanhos padrão solicitados)
+--// Box Configuration Variables
 local BoxSize = 25             -- Tamanho padrão da caixa Amarela (apoio)
 local GrayBoxSize = 18         -- Tamanho padrão da caixa Cinza (weld/ativa)
 local BoxLeadStuds = 3         -- Studs de antecedência para bloquear a saída
@@ -1096,9 +1096,9 @@ local function BoxFunc(targetInput, speaker: Player)
 			yellowBox.Parent = workspace
 			ActiveYellowBox = yellowBox
 
-			-- 2. Criação da Caixa Cinza (Ativa / Weld na vítima)
+			-- 2. Criação da Caixa Cinza (Fixa no mundo, criada na posição inicial da vítima)
 			local grayBox = Instance.new("Part")
-			grayBox.Name = "GrayActiveBox"
+			grayBox.Name = "GrayStaticBox"
 			grayBox.Shape = Enum.PartType.Ball
 			grayBox.Size = Vector3.new(GrayBoxSize, GrayBoxSize, GrayBoxSize)
 			grayBox.Position = startPos
@@ -1127,7 +1127,7 @@ local function BoxFunc(targetInput, speaker: Player)
 				end
 			}
 
-			notify("Box", "Yellow & Gray boxes active on " .. TPlayer.Name .. "!")
+			notify("Box", "Yellow & Gray static boxes active on " .. TPlayer.Name .. "!")
 
 			local connection
 			connection = RunService.Heartbeat:Connect(function()
@@ -1138,31 +1138,22 @@ local function BoxFunc(targetInput, speaker: Player)
 
 				pcall(function()
 					local victimPos = TRoot.Position
-					
-					-- A caixa cinza acompanha a vítima suavemente para monitorar os limites
-					grayBox.Position = victimPos
-
 					local yellowCenter = yellowBox.Position
 					local grayCenter = grayBox.Position
 
-					-- O player se apoia entre a vítima e a caixa amarela
 					local yellowRadius = BoxSize / 2
-					local grayRadius = GrayBoxSize / 2
-					
 					local offsetFromYellow = victimPos - yellowCenter
 					local distFromYellow = offsetFromYellow.Magnitude
 					local triggerLimit = math.max(yellowRadius - BoxLeadStuds, 1)
 
 					if distFromYellow >= triggerLimit then
-						-- Se a vítima tentar escapar da área da caixa amarela, ativa o weld na direção oposta
+						-- Se a vítima tentar escapar, aplica o weld e posiciona entre a caixa e a vítima
 						local escapeDir = offsetFromYellow.Unit
 						local blockingPos
 
 						if distFromYellow > yellowRadius then
-							-- Força oposta de puxada de volta para dentro
 							blockingPos = yellowCenter + (escapeDir * (yellowRadius - 1))
 						else
-							-- Posição de bloqueio na borda
 							blockingPos = yellowCenter + (escapeDir * distFromYellow)
 						end
 
@@ -1176,7 +1167,7 @@ local function BoxFunc(targetInput, speaker: Player)
 							sethiddenproperty(Root, "PhysicsRepRootRef", InstanceHandle.new(TRoot))
 						end
 					else
-						-- Se estiver segura no apoio, fica posicionada entre a caixa amarela e a cinza
+						-- Se estiver segura no apoio, fica posicionada entre a caixa amarela e a caixa cinza estática
 						local midPos = yellowCenter:Lerp(grayCenter, 0.5)
 						Root.CFrame = CFrame.new(midPos + Vector3.new(0, 3, 0))
 						Root.AssemblyLinearVelocity = Vector3.zero
@@ -1375,7 +1366,7 @@ FEATURES:
 • Combo: Soars, lifts, and executes fling explosion.
 • Slam: Directional push using 🎯 Pick Dir tool.
 • Torture: Descends slowly from high above and stuns.
-• Box: Traps victim using Yellow Support Box and Gray Active Weld Box.
+• Box: Traps victim using Yellow Support & Static Gray Weld boxes.
 • Stop Weld: Releases active welds.]]
 --// PART 5: Configuration Elements, Action Buttons & Initialization
 local AngleLabel = Instance.new("TextLabel", ConfigFrame)
