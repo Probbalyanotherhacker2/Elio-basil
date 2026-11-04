@@ -97,7 +97,7 @@ end
 local function getRocketAnimationId(angle)
 	angle = angle % 360
 	if angle <= 10 or angle >= 350 then
-		return "rbxassetid://127109461157686"
+		return "rbxassetid://112065326814512" -- Nova animação para ~0°
 	elseif math.abs(angle - 90) <= 10 then
 		return "rbxassetid://90806086002292"
 	elseif math.abs(angle - 270) <= 10 then
@@ -235,6 +235,7 @@ local function StopWeld()
 	workspace.FallenPartsDestroyHeight = OriginalFPDH
 	notify("Welder", "Actions stopped and player released!")
 end
+
 --// PART 2: SoaringBeast, Rocket, Platform & SlamDrop Functions
 
 local function SoaringBeast(targetInput, speaker: Player)
