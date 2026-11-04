@@ -97,7 +97,7 @@ end
 local function getRocketAnimationId(angle)
 	angle = angle % 360
 	if angle <= 10 or angle >= 350 then
-		return "rbxassetid://112065326814512" -- Nova animação para ~0°
+		return "rbxassetid://112065326814512"
 	elseif math.abs(angle - 90) <= 10 then
 		return "rbxassetid://90806086002292"
 	elseif math.abs(angle - 270) <= 10 then
@@ -235,7 +235,6 @@ local function StopWeld()
 	workspace.FallenPartsDestroyHeight = OriginalFPDH
 	notify("Welder", "Actions stopped and player released!")
 end
-
 --// PART 2: SoaringBeast, Rocket, Platform & SlamDrop Functions
 
 local function SoaringBeast(targetInput, speaker: Player)
@@ -633,6 +632,48 @@ local function SlamDrop(targetInput, speaker: Player, customVelocity)
 				notify("Slam-drop", "Slam-drop completed successfully!")
 			end
 		end)
+	end)
+end
+
+--// Nova Função: RocketAll (Aplica Rocket em todos os jogadores em ordem alfabética)
+local function RocketAll(speaker: Player, customVelocity, customTime)
+	task.spawn(function()
+		local allPlayers = Players:GetPlayers()
+		local validPlayers = {}
+
+		for _, p in ipairs(allPlayers) do
+			if p ~= speaker and p.Character and p.Character:FindFirstChild("HumanoidRootPart") then
+				table.insert(validPlayers, p)
+			end
+		end
+
+		if #validPlayers == 0 then
+			return notify("Rocket All", "No valid targets found in server!")
+		end
+
+		-- Ordena os jogadores em ordem alfabética pelo nome
+		table.sort(validPlayers, function(a, b)
+			return a.Name < b.Name
+		end)
+
+		notify("Rocket All", "Starting Rocket All (" .. #validPlayers .. " players)...")
+
+		for _, targetPlayer in ipairs(validPlayers) do
+			if not speaker.Character or not speaker.Character:FindFirstChild("HumanoidRootPart") then break end
+			
+			-- Executa o Rocket no player atual e aguarda o término rápido (0.2s)
+			local finished = false
+			
+			-- Chama o processo individual de rocket para este alvo
+			task.spawn(function()
+				Rocket(targetPlayer.Name, speaker, customVelocity, customTime)
+			end)
+			
+			task.wait(0.2)
+			StopWeld() -- Limpa o weld para passar para o próximo da lista em sequência
+		end
+
+		notify("Rocket All", "Rocket All sequence completed!")
 	end)
 end
 --// PART 3: Firework, Combo, Slam & Torture Functions
@@ -1096,7 +1137,7 @@ ScreenGui.Name = "UniversalWeldGUI"
 ScreenGui.ResetOnSpawn = false
 
 local MainFrame = Instance.new("Frame", ScreenGui)
-MainFrame.Size = UDim2.new(0, 320, 0, 315)
+MainFrame.Size = UDim2.new(0, 320, 0, 345)
 MainFrame.Position = UDim2.new(0.4, 0, 0.3, 0)
 MainFrame.BackgroundColor3 = Color3.fromRGB(245, 130, 32)
 MainFrame.BorderSizePixel = 0
@@ -1201,7 +1242,7 @@ ConfigToggleBtn.MouseButton1Click:Connect(function()
 end)
 
 local InfoFrame = Instance.new("Frame", ScreenGui)
-InfoFrame.Size = UDim2.new(0, 260, 0, 315)
+InfoFrame.Size = UDim2.new(0, 260, 0, 345)
 InfoFrame.Position = UDim2.new(0.4, -270, 0.3, 0)
 InfoFrame.BackgroundColor3 = Color3.fromRGB(245, 130, 32)
 InfoFrame.BorderSizePixel = 0
@@ -1246,7 +1287,7 @@ InfoToggleBtn.MouseButton1Click:Connect(function()
 end)
 
 local InfoText = Instance.new("TextLabel", InfoFrame)
-InfoText.Size = UDim2.new(0, 230, 0, 255)
+InfoText.Size = UDim2.new(0, 230, 0, 290)
 InfoText.Position = UDim2.new(0, 15, 0, 45)
 InfoText.BackgroundTransparency = 1
 InfoText.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -1263,6 +1304,7 @@ InfoText.Text = [[TARGET COMMANDS:
 FEATURES:
 • Soaring beast: Teleports around target then flings to void.
 • Rocket: Launches user and target up with Velocity.
+• Rocket All: Rockets all players alphabetically (0.2s interval).
 • Platform: Continuous follow without velocity/time.
 • Slam-drop: Grips on top of target and slams down.
 • Firework: Lifts target and explodes with fling.
@@ -1663,26 +1705,35 @@ createButton("Soaring beast", 112, 290, 15, function(target)
 end)
 
 local RocketBtn = Instance.new("TextButton", MainFrame)
-RocketBtn.Size = UDim2.new(0, 95, 0, 28)
+RocketBtn.Size = UDim2.new(0, 70, 0, 28)
 RocketBtn.Position = UDim2.new(0, 15, 0, 145)
 RocketBtn.BackgroundColor3 = Color3.fromRGB(190, 90, 15)
 RocketBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
 RocketBtn.Text = "Rocket"
-RocketBtn.TextSize = 13
+RocketBtn.TextSize = 12
 Instance.new("UICorner", RocketBtn).CornerRadius = UDim.new(0, 6)
 
+local RocketAllBtn = Instance.new("TextButton", MainFrame)
+RocketAllBtn.Size = UDim2.new(0, 72, 0, 28)
+RocketAllBtn.Position = UDim2.new(0, 88, 0, 145)
+RocketAllBtn.BackgroundColor3 = Color3.fromRGB(170, 75, 10)
+RocketAllBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+RocketAllBtn.Text = "Rocket All"
+RocketAllBtn.TextSize = 10
+Instance.new("UICorner", RocketAllBtn).CornerRadius = UDim.new(0, 6)
+
 local ModeBtn = Instance.new("TextButton", MainFrame)
-ModeBtn.Size = UDim2.new(0, 95, 0, 28)
-ModeBtn.Position = UDim2.new(0, 112, 0, 145)
+ModeBtn.Size = UDim2.new(0, 68, 0, 28)
+ModeBtn.Position = UDim2.new(0, 163, 0, 145)
 ModeBtn.BackgroundColor3 = Color3.fromRGB(170, 75, 10)
 ModeBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-ModeBtn.Text = "Mode Rocket"
+ModeBtn.Text = "Mode R"
 ModeBtn.TextSize = 10
 Instance.new("UICorner", ModeBtn).CornerRadius = UDim.new(0, 6)
 
 local SlamDropBtn = Instance.new("TextButton", MainFrame)
-SlamDropBtn.Size = UDim2.new(0, 95, 0, 28)
-SlamDropBtn.Position = UDim2.new(0, 210, 0, 145)
+SlamDropBtn.Size = UDim2.new(0, 75, 0, 28)
+SlamDropBtn.Position = UDim2.new(0, 234, 0, 145)
 SlamDropBtn.BackgroundColor3 = Color3.fromRGB(170, 75, 10)
 SlamDropBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
 SlamDropBtn.Text = "Slam-drop"
@@ -1694,11 +1745,11 @@ local currentRocketMode = "Rocket"
 ModeBtn.MouseButton1Click:Connect(function()
 	if currentRocketMode == "Rocket" then
 		currentRocketMode = "Platform"
-		ModeBtn.Text = "Mode Platform"
+		ModeBtn.Text = "Mode P"
 		notify("Mode", "Switched to Platform mode!")
 	else
 		currentRocketMode = "Rocket"
-		ModeBtn.Text = "Mode Rocket"
+		ModeBtn.Text = "Mode R"
 		notify("Mode", "Switched to Rocket mode!")
 	end
 end)
@@ -1744,6 +1795,12 @@ RocketBtn.MouseButton1Click:Connect(function()
 			end)
 		end)
 	end
+end)
+
+RocketAllBtn.MouseButton1Click:Connect(function()
+	local velVal = tonumber(VelocityBox.Text) or 0
+	local timeVal = tonumber(ReturnTimeBox.Text) or 0.5
+	RocketAll(LocalPlayer, velVal, timeVal)
 end)
 
 SlamDropBtn.MouseButton1Click:Connect(function()
@@ -1809,4 +1866,3 @@ createButton("Stop Weld", 277, 138, 167, function()
 end)
 
 notify("Universal weld script", "Made by Flimflam and Gemini")
-
