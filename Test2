@@ -22,6 +22,8 @@ local FireworkInterval = 2     -- Firework/Combo hold interval (seconds)
 local SlamInterval = 0.2       -- Slam hold interval (default 0.2s, editable)
 local SlamOffsetDistance = 3   -- Distance/offset from victim for Slam (editable)
 local SelectedSlamTarget = nil -- Target Vector3 for directional Slam
+local RocketRowInterval = 0.3  -- Interval between targets in Rocket Row (editable)
+local MovementBreakerOffset = 2 -- Distance offset for Movement Breaker (editable)
 
 --// Torture Configuration Variables
 local TortureHeight = 15       -- Starting height above the victim for Torture
@@ -235,7 +237,7 @@ local function StopWeld()
 	workspace.FallenPartsDestroyHeight = OriginalFPDH
 	notify("Welder", "Actions stopped and player released!")
 end
---// PART 2: SoaringBeast, Rocket, Platform, SlamDrop & RocketRow Functions
+--// PART 2: SoaringBeast, Rocket, Platform, SlamDrop, RocketRow & MovementBreaker Functions
 
 local function SoaringBeast(targetInput, speaker: Player)
 	if not targetInput or targetInput == "" then return notify('Player Required', 'No target provided for Soaring beast!') end
@@ -631,6 +633,100 @@ local function SlamDrop(targetInput, speaker: Player, customVelocity)
 
 				notify("Slam-drop", "Slam-drop completed successfully!")
 			end
+		end)
+	end)
+end
+
+--// Nova Função: Movement Breaker (Bloqueia movimento horizontal prevendo a direção da vítima)
+local function MovementBreaker(targetInput, speaker: Player)
+	if not targetInput or targetInput == "" then return notify('Player Required', 'No target provided for Movement Breaker!') end
+
+	resolveTarget(targetInput, speaker, function(v)
+		local TPlayer = Players:FindFirstChild(v)
+		if not TPlayer or not TPlayer.Character or TPlayer == speaker then return end
+
+		StopWeld()
+
+		local TCharacter = TPlayer.Character
+		local TRoot = TCharacter:WaitForChild("HumanoidRootPart", 2) or TCharacter:FindFirstChild("Torso") or TCharacter:FindFirstChild("UpperTorso")
+		local THumanoid = TCharacter:FindFirstChildOfClass("Humanoid")
+		if not TRoot then return end
+
+		local character = speaker.Character
+		if not character then return end
+		local Root = character:WaitForChild("HumanoidRootPart", 2)
+		if not Root then return end
+
+		task.spawn(function()
+			local initialCFrame = Root.CFrame
+			workspace.FallenPartsDestroyHeight = 0/0
+
+			for _, part in pairs(character:GetDescendants()) do
+				if part:IsA("BasePart") then
+					part.CanCollide = false
+					part.Massless = true
+				end
+			end
+
+			local breakerRunning = true
+			local connection
+
+			connection = RunService.Heartbeat:Connect(function()
+				if not breakerRunning or not character.Parent or not TRoot.Parent then
+					if connection then connection:Disconnect() end
+					return
+				end
+
+				pcall(function()
+					-- Obtém a velocidade linear horizontal da vítima para prever direção exata
+					local vel = TRoot.AssemblyLinearVelocity
+					local horizontalVel = Vector3.new(vel.X, 0, vel.Z)
+					
+					local targetPos = TRoot.Position
+					
+					-- Se a vítima estiver se movendo, posiciona exatamente na direção do movimento (bloqueando o caminho)
+					if horizontalVel.Magnitude > 0.5 then
+						local moveDir = horizontalVel.Unit
+						-- Posição bloqueadora na frente da direção em que a vítima caminha
+						targetPos = targetPos + (moveDir * MovementBreakerOffset)
+					else
+						-- Se estiver parada, fica logo à frente do olhar da vítima
+						local lookDir = TRoot.CFrame.LookVector
+						lookDir = Vector3.new(lookDir.X, 0, lookDir.Z).Unit
+						targetPos = targetPos + (lookDir * MovementBreakerOffset)
+					end
+
+					-- Mantém a mesma altura Y da vítima (permitindo pular livremente sem travar a altura)
+					targetPos = Vector3.new(targetPos.X, TRoot.Position.Y, targetPos.Z)
+
+					-- Alinha o player bloqueador na altura da vítima, preservando liberdade de salto
+					Root.CFrame = CFrame.new(targetPos, Vector3.new(TRoot.Position.X, targetPos.Y, TRoot.Position.Z))
+					Root.AssemblyLinearVelocity = Vector3.zero
+					Root.AssemblyAngularVelocity = Vector3.zero
+					Root.RotVelocity = Vector3.zero
+
+					if sethiddenproperty then
+						sethiddenproperty(Root, "PhysicsRepRootPart", TRoot)
+						sethiddenproperty(Root, "PhysicsRepRootRef", InstanceHandle.new(TRoot))
+					end
+				end)
+			end)
+
+			CurrentWeld = {
+				Destroy = function()
+					breakerRunning = false
+					if connection then connection:Disconnect() end
+					if Root then
+						Root.CFrame = initialCFrame
+						Root.AssemblyLinearVelocity = Vector3.zero
+						Root.AssemblyAngularVelocity = Vector3.zero
+						Root.RotVelocity = Vector3.zero
+					end
+					workspace.FallenPartsDestroyHeight = OriginalFPDH
+				end
+			}
+
+			notify("Movement Breaker", "Blocking movement of " .. TPlayer.Name .. "!")
 		end)
 	end)
 end
@@ -1095,7 +1191,7 @@ ScreenGui.Name = "UniversalWeldGUI"
 ScreenGui.ResetOnSpawn = false
 
 local MainFrame = Instance.new("Frame", ScreenGui)
-MainFrame.Size = UDim2.new(0, 320, 0, 345)
+MainFrame.Size = UDim2.new(0, 320, 0, 380)
 MainFrame.Position = UDim2.new(0.4, 0, 0.3, 0)
 MainFrame.BackgroundColor3 = Color3.fromRGB(245, 130, 32)
 MainFrame.BorderSizePixel = 0
@@ -1158,7 +1254,7 @@ ConfigFrame.Position = UDim2.new(0.4, 330, 0.3, 0)
 ConfigFrame.BackgroundColor3 = Color3.fromRGB(245, 130, 32)
 ConfigFrame.BorderSizePixel = 0
 ConfigFrame.Visible = false
-ConfigFrame.CanvasSize = UDim2.new(0, 0, 0, 720)
+ConfigFrame.CanvasSize = UDim2.new(0, 0, 0, 840)
 ConfigFrame.ScrollBarThickness = 6
 Instance.new("UICorner", ConfigFrame).CornerRadius = UDim.new(0, 8)
 
@@ -1200,7 +1296,7 @@ ConfigToggleBtn.MouseButton1Click:Connect(function()
 end)
 
 local InfoFrame = Instance.new("Frame", ScreenGui)
-InfoFrame.Size = UDim2.new(0, 260, 0, 345)
+InfoFrame.Size = UDim2.new(0, 260, 0, 380)
 InfoFrame.Position = UDim2.new(0.4, -270, 0.3, 0)
 InfoFrame.BackgroundColor3 = Color3.fromRGB(245, 130, 32)
 InfoFrame.BorderSizePixel = 0
@@ -1245,7 +1341,7 @@ InfoToggleBtn.MouseButton1Click:Connect(function()
 end)
 
 local InfoText = Instance.new("TextLabel", InfoFrame)
-InfoText.Size = UDim2.new(0, 230, 0, 290)
+InfoText.Size = UDim2.new(0, 230, 0, 320)
 InfoText.Position = UDim2.new(0, 15, 0, 45)
 InfoText.BackgroundTransparency = 1
 InfoText.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -1262,7 +1358,8 @@ InfoText.Text = [[TARGET COMMANDS:
 FEATURES:
 • Soaring beast: Teleports around target then flings to void.
 • Rocket: Launches user and target up with Velocity.
-• Rocket Row: Gives tool to fire transparent orbs (20 studs) that queue hit players and rocket them sequentially (0.3s).
+• Rocket Row: Fires transparent orbs (20 studs) that queue hit players sequentially (Interval editable in Config).
+• Movement Breaker: Locks onto victim ahead of their movement direction, blocking horizontal travel without blocking jumps.
 • Platform: Continuous follow without velocity/time.
 • Slam-drop: Grips on top of target and slams down.
 • Firework: Lifts target and explodes with fling.
@@ -1514,9 +1611,65 @@ OffsetBox.FocusLost:Connect(function()
 	end
 end)
 
+local RocketRowIntLabel = Instance.new("TextLabel", ConfigFrame)
+RocketRowIntLabel.Size = UDim2.new(0, 190, 0, 20)
+RocketRowIntLabel.Position = UDim2.new(0, 15, 0, 525)
+RocketRowIntLabel.BackgroundTransparency = 1
+RocketRowIntLabel.Text = "Rocket Row Interval:"
+RocketRowIntLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+RocketRowIntLabel.TextSize = 12
+RocketRowIntLabel.TextXAlignment = Enum.TextXAlignment.Left
+
+local RocketRowIntBox = Instance.new("TextBox", ConfigFrame)
+RocketRowIntBox.Size = UDim2.new(0, 190, 0, 28)
+RocketRowIntBox.Position = UDim2.new(0, 15, 0, 548)
+RocketRowIntBox.BackgroundColor3 = Color3.fromRGB(220, 110, 20)
+RocketRowIntBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+RocketRowIntBox.Text = tostring(RocketRowInterval)
+RocketRowIntBox.TextSize = 13
+Instance.new("UICorner", RocketRowIntBox).CornerRadius = UDim.new(0, 6)
+
+RocketRowIntBox.FocusLost:Connect(function()
+	local val = tonumber(RocketRowIntBox.Text)
+	if val and val >= 0 then
+		RocketRowInterval = val
+		RocketRowIntBox.Text = tostring(val)
+	else
+		RocketRowIntBox.Text = tostring(RocketRowInterval)
+	end
+end)
+
+local MBOffsetLabel = Instance.new("TextLabel", ConfigFrame)
+MBOffsetLabel.Size = UDim2.new(0, 190, 0, 20)
+MBOffsetLabel.Position = UDim2.new(0, 15, 0, 585)
+MBOffsetLabel.BackgroundTransparency = 1
+MBOffsetLabel.Text = "Mov. Breaker Offset:"
+MBOffsetLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+MBOffsetLabel.TextSize = 12
+MBOffsetLabel.TextXAlignment = Enum.TextXAlignment.Left
+
+local MBOffsetBox = Instance.new("TextBox", ConfigFrame)
+MBOffsetBox.Size = UDim2.new(0, 190, 0, 28)
+MBOffsetBox.Position = UDim2.new(0, 15, 0, 608)
+MBOffsetBox.BackgroundColor3 = Color3.fromRGB(220, 110, 20)
+MBOffsetBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+MBOffsetBox.Text = tostring(MovementBreakerOffset)
+MBOffsetBox.TextSize = 13
+Instance.new("UICorner", MBOffsetBox).CornerRadius = UDim.new(0, 6)
+
+MBOffsetBox.FocusLost:Connect(function()
+	local val = tonumber(MBOffsetBox.Text)
+	if val then
+		MovementBreakerOffset = val
+		MBOffsetBox.Text = tostring(val)
+	else
+		MBOffsetBox.Text = tostring(MovementBreakerOffset)
+	end
+end)
+
 local TortureHeightLabel = Instance.new("TextLabel", ConfigFrame)
 TortureHeightLabel.Size = UDim2.new(0, 190, 0, 20)
-TortureHeightLabel.Position = UDim2.new(0, 15, 0, 525)
+TortureHeightLabel.Position = UDim2.new(0, 15, 0, 645)
 TortureHeightLabel.BackgroundTransparency = 1
 TortureHeightLabel.Text = "Torture Height:"
 TortureHeightLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -1525,7 +1678,7 @@ TortureHeightLabel.TextXAlignment = Enum.TextXAlignment.Left
 
 local TortureHeightBox = Instance.new("TextBox", ConfigFrame)
 TortureHeightBox.Size = UDim2.new(0, 190, 0, 28)
-TortureHeightBox.Position = UDim2.new(0, 15, 0, 548)
+TortureHeightBox.Position = UDim2.new(0, 15, 0, 668)
 TortureHeightBox.BackgroundColor3 = Color3.fromRGB(220, 110, 20)
 TortureHeightBox.TextColor3 = Color3.fromRGB(255, 255, 255)
 TortureHeightBox.Text = tostring(TortureHeight)
@@ -1544,7 +1697,7 @@ end)
 
 local TortureTimeLabel = Instance.new("TextLabel", ConfigFrame)
 TortureTimeLabel.Size = UDim2.new(0, 190, 0, 20)
-TortureTimeLabel.Position = UDim2.new(0, 15, 0, 585)
+TortureTimeLabel.Position = UDim2.new(0, 15, 0, 705)
 TortureTimeLabel.BackgroundTransparency = 1
 TortureTimeLabel.Text = "Torture Descent Time:"
 TortureTimeLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -1553,7 +1706,7 @@ TortureTimeLabel.TextXAlignment = Enum.TextXAlignment.Left
 
 local TortureTimeBox = Instance.new("TextBox", ConfigFrame)
 TortureTimeBox.Size = UDim2.new(0, 190, 0, 28)
-TortureTimeBox.Position = UDim2.new(0, 15, 0, 608)
+TortureTimeBox.Position = UDim2.new(0, 15, 0, 728)
 TortureTimeBox.BackgroundColor3 = Color3.fromRGB(220, 110, 20)
 TortureTimeBox.TextColor3 = Color3.fromRGB(255, 255, 255)
 TortureTimeBox.Text = tostring(TortureDescentTime)
@@ -1755,7 +1908,6 @@ RocketBtn.MouseButton1Click:Connect(function()
 	end
 end)
 
--- Nova Ferramenta Rocket Row no Backpack
 RocketRowBtn.MouseButton1Click:Connect(function()
 	local backpack = LocalPlayer:FindFirstChildOfClass("Backpack")
 	local character = LocalPlayer.Character
@@ -1775,7 +1927,6 @@ RocketRowBtn.MouseButton1Click:Connect(function()
 		local root = char and char:FindFirstChild("HumanoidRootPart")
 		if not root then return end
 		
-		-- Cria o orbe transparente com 20 studs de tamanho
 		local orb = Instance.new("Part")
 		orb.Name = "RocketOrbProjectile"
 		orb.Shape = Enum.PartType.Ball
@@ -1809,9 +1960,8 @@ RocketRowBtn.MouseButton1Click:Connect(function()
 			end
 		end)
 		
-		-- Processa os alvos atingidos em sequência (FIFO) com intervalo de 0.3s
 		task.spawn(function()
-			task.wait(1.5) -- Tempo de vida do orbe
+			task.wait(1.5)
 			orbActive = false
 			if orb then orb:Destroy() end
 			
@@ -1823,7 +1973,7 @@ RocketRowBtn.MouseButton1Click:Connect(function()
 				for _, targetPlayer in ipairs(hitQueue) do
 					if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
 						Rocket(targetPlayer.Name, LocalPlayer, velVal, timeVal)
-						task.wait(0.3)
+						task.wait(RocketRowInterval) -- Intervalo dinâmico configurável
 						StopWeld()
 					end
 				end
@@ -1896,6 +2046,10 @@ end)
 
 createButton("Stop Weld", 277, 138, 167, function()
 	StopWeld()
+end)
+
+createButton("Movement Breaker", 310, 290, 15, function(target)
+	MovementBreaker(target, LocalPlayer)
 end)
 
 notify("Universal weld script", "Made by Flimflam and Gemini")
