@@ -235,7 +235,7 @@ local function StopWeld()
 	workspace.FallenPartsDestroyHeight = OriginalFPDH
 	notify("Welder", "Actions stopped and player released!")
 end
---// PART 2: SoaringBeast, Rocket, Platform & SlamDrop Functions
+--// PART 2: SoaringBeast, Rocket, Platform, SlamDrop & RocketRow Functions
 
 local function SoaringBeast(targetInput, speaker: Player)
 	if not targetInput or targetInput == "" then return notify('Player Required', 'No target provided for Soaring beast!') end
@@ -632,48 +632,6 @@ local function SlamDrop(targetInput, speaker: Player, customVelocity)
 				notify("Slam-drop", "Slam-drop completed successfully!")
 			end
 		end)
-	end)
-end
-
---// Nova Função: RocketAll (Aplica Rocket em todos os jogadores em ordem alfabética)
-local function RocketAll(speaker: Player, customVelocity, customTime)
-	task.spawn(function()
-		local allPlayers = Players:GetPlayers()
-		local validPlayers = {}
-
-		for _, p in ipairs(allPlayers) do
-			if p ~= speaker and p.Character and p.Character:FindFirstChild("HumanoidRootPart") then
-				table.insert(validPlayers, p)
-			end
-		end
-
-		if #validPlayers == 0 then
-			return notify("Rocket All", "No valid targets found in server!")
-		end
-
-		-- Ordena os jogadores em ordem alfabética pelo nome
-		table.sort(validPlayers, function(a, b)
-			return a.Name < b.Name
-		end)
-
-		notify("Rocket All", "Starting Rocket All (" .. #validPlayers .. " players)...")
-
-		for _, targetPlayer in ipairs(validPlayers) do
-			if not speaker.Character or not speaker.Character:FindFirstChild("HumanoidRootPart") then break end
-			
-			-- Executa o Rocket no player atual e aguarda o término rápido (0.2s)
-			local finished = false
-			
-			-- Chama o processo individual de rocket para este alvo
-			task.spawn(function()
-				Rocket(targetPlayer.Name, speaker, customVelocity, customTime)
-			end)
-			
-			task.wait(0.2)
-			StopWeld() -- Limpa o weld para passar para o próximo da lista em sequência
-		end
-
-		notify("Rocket All", "Rocket All sequence completed!")
 	end)
 end
 --// PART 3: Firework, Combo, Slam & Torture Functions
@@ -1304,7 +1262,7 @@ InfoText.Text = [[TARGET COMMANDS:
 FEATURES:
 • Soaring beast: Teleports around target then flings to void.
 • Rocket: Launches user and target up with Velocity.
-• Rocket All: Rockets all players alphabetically (0.2s interval).
+• Rocket Row: Gives tool to fire transparent orbs (20 studs) that queue hit players and rocket them sequentially (0.3s).
 • Platform: Continuous follow without velocity/time.
 • Slam-drop: Grips on top of target and slams down.
 • Firework: Lifts target and explodes with fling.
@@ -1713,14 +1671,14 @@ RocketBtn.Text = "Rocket"
 RocketBtn.TextSize = 12
 Instance.new("UICorner", RocketBtn).CornerRadius = UDim.new(0, 6)
 
-local RocketAllBtn = Instance.new("TextButton", MainFrame)
-RocketAllBtn.Size = UDim2.new(0, 72, 0, 28)
-RocketAllBtn.Position = UDim2.new(0, 88, 0, 145)
-RocketAllBtn.BackgroundColor3 = Color3.fromRGB(170, 75, 10)
-RocketAllBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-RocketAllBtn.Text = "Rocket All"
-RocketAllBtn.TextSize = 10
-Instance.new("UICorner", RocketAllBtn).CornerRadius = UDim.new(0, 6)
+local RocketRowBtn = Instance.new("TextButton", MainFrame)
+RocketRowBtn.Size = UDim2.new(0, 72, 0, 28)
+RocketRowBtn.Position = UDim2.new(0, 88, 0, 145)
+RocketRowBtn.BackgroundColor3 = Color3.fromRGB(170, 75, 10)
+RocketRowBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+RocketRowBtn.Text = "Rocket Row"
+RocketRowBtn.TextSize = 10
+Instance.new("UICorner", RocketRowBtn).CornerRadius = UDim.new(0, 6)
 
 local ModeBtn = Instance.new("TextButton", MainFrame)
 ModeBtn.Size = UDim2.new(0, 68, 0, 28)
@@ -1797,10 +1755,85 @@ RocketBtn.MouseButton1Click:Connect(function()
 	end
 end)
 
-RocketAllBtn.MouseButton1Click:Connect(function()
-	local velVal = tonumber(VelocityBox.Text) or 0
-	local timeVal = tonumber(ReturnTimeBox.Text) or 0.5
-	RocketAll(LocalPlayer, velVal, timeVal)
+-- Nova Ferramenta Rocket Row no Backpack
+RocketRowBtn.MouseButton1Click:Connect(function()
+	local backpack = LocalPlayer:FindFirstChildOfClass("Backpack")
+	local character = LocalPlayer.Character
+	if not backpack or not character then return end
+	
+	if backpack:FindFirstChild("Rocket Orb") or (character and character:FindFirstChild("Rocket Orb")) then
+		notify("Rocket Row", "You already have the Rocket Orb tool!")
+		return
+	end
+	
+	local tool = Instance.new("Tool")
+	tool.Name = "Rocket Orb"
+	tool.RequiresHandle = false
+	
+	tool.Activated:Connect(function()
+		local char = LocalPlayer.Character
+		local root = char and char:FindFirstChild("HumanoidRootPart")
+		if not root then return end
+		
+		-- Cria o orbe transparente com 20 studs de tamanho
+		local orb = Instance.new("Part")
+		orb.Name = "RocketOrbProjectile"
+		orb.Shape = Enum.PartType.Ball
+		orb.Size = Vector3.new(20, 20, 20)
+		orb.Position = root.Position + (root.CFrame.LookVector * 5)
+		orb.Transparency = 0.8
+		orb.BrickColor = BrickColor.new("Cyan")
+		orb.Material = Enum.Material.Neon
+		orb.CanCollide = false
+		orb.Anchored = false
+		orb.Parent = workspace
+		
+		local bv = Instance.new("BodyVelocity")
+		bv.Velocity = root.CFrame.LookVector * 100
+		bv.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
+		bv.Parent = orb
+		
+		local hitQueue = {}
+		local hitPlayers = {}
+		local orbActive = true
+		
+		orb.Touched:Connect(function(hit)
+			if not orbActive then return end
+			local model = hit:FindFirstAncestorOfClass("Model")
+			if model then
+				local player = Players:GetPlayerFromCharacter(model)
+				if player and player ~= LocalPlayer and not hitPlayers[player] then
+					hitPlayers[player] = true
+					table.insert(hitQueue, player)
+				end
+			end
+		end)
+		
+		-- Processa os alvos atingidos em sequência (FIFO) com intervalo de 0.3s
+		task.spawn(function()
+			task.wait(1.5) -- Tempo de vida do orbe
+			orbActive = false
+			if orb then orb:Destroy() end
+			
+			if #hitQueue > 0 then
+				notify("Rocket Row", "Hit " .. #hitQueue .. " players! Executing queue...")
+				local velVal = tonumber(VelocityBox.Text) or 0
+				local timeVal = tonumber(ReturnTimeBox.Text) or 0.5
+				
+				for _, targetPlayer in ipairs(hitQueue) do
+					if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+						Rocket(targetPlayer.Name, LocalPlayer, velVal, timeVal)
+						task.wait(0.3)
+						StopWeld()
+					end
+				end
+				notify("Rocket Row", "Rocket Row sequence finished!")
+			end
+		end)
+	end)
+	
+	tool.Parent = backpack
+	notify("Rocket Row", "Rocket Orb tool added to your backpack!")
 end)
 
 SlamDropBtn.MouseButton1Click:Connect(function()
