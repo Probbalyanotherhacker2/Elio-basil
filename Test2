@@ -12,6 +12,10 @@ local SoaringAnimTrack = nil
 local TortureAnimTrack = nil
 local RocketAnimTrack = nil
 
+--// Walkfling Variable
+local WalkflingActive = false
+local WalkflingConnection = nil
+
 --// Editable Configuration Variables
 local RocketAngle = 0          -- Rocket angle (0 to 360)
 local RocketBaseHeight = -3.5  -- Rocket base height
@@ -38,6 +42,49 @@ local function notify(title, text)
 			Duration = 3
 		})
 	end)
+end
+
+--// Walkfling Toggle Function
+local function toggleWalkfling(button)
+	WalkflingActive = not WalkflingActive
+
+	if WalkflingActive then
+		if button then
+			button.Text = "Walkfling [ON]"
+			button.BackgroundColor3 = Color3.fromRGB(40, 180, 70)
+		end
+		notify("Walkfling", "Walkfling ENABLED!")
+
+		WalkflingConnection = RunService.Heartbeat:Connect(function()
+			if not WalkflingActive then return end
+			local character = LocalPlayer.Character
+			local root = character and character:FindFirstChild("HumanoidRootPart")
+			if root then
+				pcall(function()
+					local vel = root.AssemblyLinearVelocity
+					root.AssemblyAngularVelocity = Vector3.new(10000, 10000, 10000)
+					root.AssemblyLinearVelocity = Vector3.new(vel.X, 100, vel.Z)
+				end)
+			end
+		end)
+	else
+		if WalkflingConnection then
+			WalkflingConnection:Disconnect()
+			WalkflingConnection = nil
+		end
+		if button then
+			button.Text = "Walkfling [OFF]"
+			button.BackgroundColor3 = Color3.fromRGB(190, 90, 15)
+		end
+		local character = LocalPlayer.Character
+		local root = character and character:FindFirstChild("HumanoidRootPart")
+		if root then
+			pcall(function()
+				root.AssemblyAngularVelocity = Vector3.zero
+			end)
+		end
+		notify("Walkfling", "Walkfling DISABLED!")
+	end
 end
 
 --// Animation Management Functions
@@ -237,7 +284,7 @@ local function StopWeld()
 	workspace.FallenPartsDestroyHeight = OriginalFPDH
 	notify("Welder", "Actions stopped and player released!")
 end
---// PART 2: SoaringBeast, Rocket, Platform, SlamDrop, RocketRow & MovementBreaker Functions
+--// PART 2: SoaringBeast, Rocket, Platform, SlamDrop & MovementBreaker Functions
 
 local function SoaringBeast(targetInput, speaker: Player)
 	if not targetInput or targetInput == "" then return notify('Player Required', 'No target provided for Soaring beast!') end
@@ -637,7 +684,6 @@ local function SlamDrop(targetInput, speaker: Player, customVelocity)
 	end)
 end
 
---// Nova Função: Movement Breaker (Bloqueia movimento horizontal prevendo a direção da vítima)
 local function MovementBreaker(targetInput, speaker: Player)
 	if not targetInput or targetInput == "" then return notify('Player Required', 'No target provided for Movement Breaker!') end
 
@@ -649,7 +695,6 @@ local function MovementBreaker(targetInput, speaker: Player)
 
 		local TCharacter = TPlayer.Character
 		local TRoot = TCharacter:WaitForChild("HumanoidRootPart", 2) or TCharacter:FindFirstChild("Torso") or TCharacter:FindFirstChild("UpperTorso")
-		local THumanoid = TCharacter:FindFirstChildOfClass("Humanoid")
 		if not TRoot then return end
 
 		local character = speaker.Character
@@ -678,28 +723,21 @@ local function MovementBreaker(targetInput, speaker: Player)
 				end
 
 				pcall(function()
-					-- Obtém a velocidade linear horizontal da vítima para prever direção exata
 					local vel = TRoot.AssemblyLinearVelocity
 					local horizontalVel = Vector3.new(vel.X, 0, vel.Z)
-					
 					local targetPos = TRoot.Position
 					
-					-- Se a vítima estiver se movendo, posiciona exatamente na direção do movimento (bloqueando o caminho)
 					if horizontalVel.Magnitude > 0.5 then
 						local moveDir = horizontalVel.Unit
-						-- Posição bloqueadora na frente da direção em que a vítima caminha
 						targetPos = targetPos + (moveDir * MovementBreakerOffset)
 					else
-						-- Se estiver parada, fica logo à frente do olhar da vítima
 						local lookDir = TRoot.CFrame.LookVector
 						lookDir = Vector3.new(lookDir.X, 0, lookDir.Z).Unit
 						targetPos = targetPos + (lookDir * MovementBreakerOffset)
 					end
 
-					-- Mantém a mesma altura Y da vítima (permitindo pular livremente sem travar a altura)
 					targetPos = Vector3.new(targetPos.X, TRoot.Position.Y, targetPos.Z)
 
-					-- Alinha o player bloqueador na altura da vítima, preservando liberdade de salto
 					Root.CFrame = CFrame.new(targetPos, Vector3.new(TRoot.Position.X, targetPos.Y, TRoot.Position.Z))
 					Root.AssemblyLinearVelocity = Vector3.zero
 					Root.AssemblyAngularVelocity = Vector3.zero
@@ -1191,7 +1229,7 @@ ScreenGui.Name = "UniversalWeldGUI"
 ScreenGui.ResetOnSpawn = false
 
 local MainFrame = Instance.new("Frame", ScreenGui)
-MainFrame.Size = UDim2.new(0, 320, 0, 380)
+MainFrame.Size = UDim2.new(0, 320, 0, 415)
 MainFrame.Position = UDim2.new(0.4, 0, 0.3, 0)
 MainFrame.BackgroundColor3 = Color3.fromRGB(245, 130, 32)
 MainFrame.BorderSizePixel = 0
@@ -1296,7 +1334,7 @@ ConfigToggleBtn.MouseButton1Click:Connect(function()
 end)
 
 local InfoFrame = Instance.new("Frame", ScreenGui)
-InfoFrame.Size = UDim2.new(0, 260, 0, 380)
+InfoFrame.Size = UDim2.new(0, 260, 0, 415)
 InfoFrame.Position = UDim2.new(0.4, -270, 0.3, 0)
 InfoFrame.BackgroundColor3 = Color3.fromRGB(245, 130, 32)
 InfoFrame.BorderSizePixel = 0
@@ -1341,7 +1379,7 @@ InfoToggleBtn.MouseButton1Click:Connect(function()
 end)
 
 local InfoText = Instance.new("TextLabel", InfoFrame)
-InfoText.Size = UDim2.new(0, 230, 0, 320)
+InfoText.Size = UDim2.new(0, 230, 0, 360)
 InfoText.Position = UDim2.new(0, 15, 0, 45)
 InfoText.BackgroundTransparency = 1
 InfoText.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -1356,10 +1394,11 @@ InfoText.Text = [[TARGET COMMANDS:
 • random: Picks a random player in server.
 
 FEATURES:
+• Walkfling: Flings anyone touched while allowing normal player movement without welds.
 • Soaring beast: Teleports around target then flings to void.
 • Rocket: Launches user and target up with Velocity.
-• Rocket Row: Fires transparent orbs (20 studs) that queue hit players sequentially (Interval editable in Config).
-• Movement Breaker: Locks onto victim ahead of their movement direction, blocking horizontal travel without blocking jumps.
+• Rocket Row: Fires transparent orbs (20 studs) that queue hit players sequentially.
+• Movement Breaker: Locks onto victim ahead of their movement direction without blocking jumps.
 • Platform: Continuous follow without velocity/time.
 • Slam-drop: Grips on top of target and slams down.
 • Firework: Lifts target and explodes with fling.
@@ -1367,6 +1406,8 @@ FEATURES:
 • Slam: Directional push using 🎯 Pick Dir tool.
 • Torture: Descends slowly from high above and stuns.
 • Stop Weld: Releases active welds.]]
+
+
 --// PART 5: Configuration Elements, Action Buttons & Initialization
 local AngleLabel = Instance.new("TextLabel", ConfigFrame)
 AngleLabel.Size = UDim2.new(0, 190, 0, 20)
@@ -1806,18 +1847,22 @@ local function createButton(text, posY, width, posX, callback)
 	Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 6)
 	btn.MouseButton1Click:Connect(function()
 		local targetName = TargetBox.Text
-		callback(targetName)
+		callback(targetName, btn)
 	end)
 	return btn
 end
 
-createButton("Soaring beast", 112, 290, 15, function(target)
+createButton("Walkfling [OFF]", 112, 290, 15, function(_, btn)
+	toggleWalkfling(btn)
+end)
+
+createButton("Soaring beast", 145, 290, 15, function(target)
 	SoaringBeast(target, LocalPlayer)
 end)
 
 local RocketBtn = Instance.new("TextButton", MainFrame)
 RocketBtn.Size = UDim2.new(0, 70, 0, 28)
-RocketBtn.Position = UDim2.new(0, 15, 0, 145)
+RocketBtn.Position = UDim2.new(0, 15, 0, 178)
 RocketBtn.BackgroundColor3 = Color3.fromRGB(190, 90, 15)
 RocketBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
 RocketBtn.Text = "Rocket"
@@ -1826,7 +1871,7 @@ Instance.new("UICorner", RocketBtn).CornerRadius = UDim.new(0, 6)
 
 local RocketRowBtn = Instance.new("TextButton", MainFrame)
 RocketRowBtn.Size = UDim2.new(0, 72, 0, 28)
-RocketRowBtn.Position = UDim2.new(0, 88, 0, 145)
+RocketRowBtn.Position = UDim2.new(0, 88, 0, 178)
 RocketRowBtn.BackgroundColor3 = Color3.fromRGB(170, 75, 10)
 RocketRowBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
 RocketRowBtn.Text = "Rocket Row"
@@ -1835,7 +1880,7 @@ Instance.new("UICorner", RocketRowBtn).CornerRadius = UDim.new(0, 6)
 
 local ModeBtn = Instance.new("TextButton", MainFrame)
 ModeBtn.Size = UDim2.new(0, 68, 0, 28)
-ModeBtn.Position = UDim2.new(0, 163, 0, 145)
+ModeBtn.Position = UDim2.new(0, 163, 0, 178)
 ModeBtn.BackgroundColor3 = Color3.fromRGB(170, 75, 10)
 ModeBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
 ModeBtn.Text = "Mode R"
@@ -1844,7 +1889,7 @@ Instance.new("UICorner", ModeBtn).CornerRadius = UDim.new(0, 6)
 
 local SlamDropBtn = Instance.new("TextButton", MainFrame)
 SlamDropBtn.Size = UDim2.new(0, 75, 0, 28)
-SlamDropBtn.Position = UDim2.new(0, 234, 0, 145)
+SlamDropBtn.Position = UDim2.new(0, 234, 0, 178)
 SlamDropBtn.BackgroundColor3 = Color3.fromRGB(170, 75, 10)
 SlamDropBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
 SlamDropBtn.Text = "Slam-drop"
@@ -1973,7 +2018,7 @@ RocketRowBtn.MouseButton1Click:Connect(function()
 				for _, targetPlayer in ipairs(hitQueue) do
 					if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
 						Rocket(targetPlayer.Name, LocalPlayer, velVal, timeVal)
-						task.wait(RocketRowInterval) -- Intervalo dinâmico configurável
+						task.wait(RocketRowInterval)
 						StopWeld()
 					end
 				end
@@ -1992,22 +2037,22 @@ SlamDropBtn.MouseButton1Click:Connect(function()
 	SlamDrop(target, LocalPlayer, velVal)
 end)
 
-createButton("Firework", 178, 290, 15, function(target)
+createButton("Firework", 211, 290, 15, function(target)
 	Firework(target, LocalPlayer)
 end)
 
-createButton("Combo", 211, 290, 15, function(target)
+createButton("Combo", 244, 290, 15, function(target)
 	Combo(target, LocalPlayer)
 end)
 
-createButton("Slam", 244, 195, 15, function(target)
+createButton("Slam", 277, 195, 15, function(target)
 	local velVal = tonumber(VelocityBox.Text) or 0
 	Slam(target, LocalPlayer, velVal)
 end)
 
 local PickDirBtn = Instance.new("TextButton", MainFrame)
 PickDirBtn.Size = UDim2.new(0, 90, 0, 28)
-PickDirBtn.Position = UDim2.new(0, 215, 0, 244)
+PickDirBtn.Position = UDim2.new(0, 215, 0, 277)
 PickDirBtn.BackgroundColor3 = Color3.fromRGB(170, 75, 10)
 PickDirBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
 PickDirBtn.Text = "Pick Dir"
@@ -2039,16 +2084,16 @@ PickDirBtn.MouseButton1Click:Connect(function()
 	end)
 end)
 
-createButton("Torture", 277, 138, 15, function(target)
+createButton("Torture", 310, 138, 15, function(target)
 	local velVal = tonumber(VelocityBox.Text) or 0
 	Torture(target, LocalPlayer, velVal)
 end)
 
-createButton("Stop Weld", 277, 138, 167, function()
+createButton("Stop Weld", 310, 138, 167, function()
 	StopWeld()
 end)
 
-createButton("Movement Breaker", 310, 290, 15, function(target)
+createButton("Movement Breaker", 343, 290, 15, function(target)
 	MovementBreaker(target, LocalPlayer)
 end)
 
