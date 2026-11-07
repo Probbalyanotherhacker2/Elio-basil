@@ -12,10 +12,6 @@ local SoaringAnimTrack = nil
 local TortureAnimTrack = nil
 local RocketAnimTrack = nil
 
---// Walkfling Variable
-local WalkflingActive = false
-local WalkflingConnection = nil
-
 --// Editable Configuration Variables
 local RocketAngle = 0          -- Rocket angle (0 to 360)
 local RocketBaseHeight = -3.5  -- Rocket base height
@@ -42,49 +38,6 @@ local function notify(title, text)
 			Duration = 3
 		})
 	end)
-end
-
---// Walkfling Toggle Function
-local function toggleWalkfling(button)
-	WalkflingActive = not WalkflingActive
-
-	if WalkflingActive then
-		if button then
-			button.Text = "Walkfling [ON]"
-			button.BackgroundColor3 = Color3.fromRGB(40, 180, 70)
-		end
-		notify("Walkfling", "Walkfling ENABLED!")
-
-		WalkflingConnection = RunService.Heartbeat:Connect(function()
-			if not WalkflingActive then return end
-			local character = LocalPlayer.Character
-			local root = character and character:FindFirstChild("HumanoidRootPart")
-			if root then
-				pcall(function()
-					local vel = root.AssemblyLinearVelocity
-					root.AssemblyAngularVelocity = Vector3.new(10000, 10000, 10000)
-					root.AssemblyLinearVelocity = Vector3.new(vel.X, 100, vel.Z)
-				end)
-			end
-		end)
-	else
-		if WalkflingConnection then
-			WalkflingConnection:Disconnect()
-			WalkflingConnection = nil
-		end
-		if button then
-			button.Text = "Walkfling [OFF]"
-			button.BackgroundColor3 = Color3.fromRGB(190, 90, 15)
-		end
-		local character = LocalPlayer.Character
-		local root = character and character:FindFirstChild("HumanoidRootPart")
-		if root then
-			pcall(function()
-				root.AssemblyAngularVelocity = Vector3.zero
-			end)
-		end
-		notify("Walkfling", "Walkfling DISABLED!")
-	end
 end
 
 --// Animation Management Functions
@@ -284,7 +237,7 @@ local function StopWeld()
 	workspace.FallenPartsDestroyHeight = OriginalFPDH
 	notify("Welder", "Actions stopped and player released!")
 end
---// PART 2: SoaringBeast, Rocket, Platform, SlamDrop & MovementBreaker Functions
+--// PART 2: SoaringBeast, Rocket, Platform, SlamDrop, RocketRow & MovementBreaker Functions
 
 local function SoaringBeast(targetInput, speaker: Player)
 	if not targetInput or targetInput == "" then return notify('Player Required', 'No target provided for Soaring beast!') end
@@ -1229,18 +1182,18 @@ ScreenGui.Name = "UniversalWeldGUI"
 ScreenGui.ResetOnSpawn = false
 
 local MainFrame = Instance.new("Frame", ScreenGui)
-MainFrame.Size = UDim2.new(0, 320, 0, 415)
+MainFrame.Size = UDim2.new(0, 260, 0, 295)
 MainFrame.Position = UDim2.new(0.4, 0, 0.3, 0)
 MainFrame.BackgroundColor3 = Color3.fromRGB(245, 130, 32)
 MainFrame.BorderSizePixel = 0
 Instance.new("UICorner", MainFrame).CornerRadius = UDim.new(0, 8)
 
 local TopBar = Instance.new("TextLabel", MainFrame)
-TopBar.Size = UDim2.new(1, 0, 0, 35)
+TopBar.Size = UDim2.new(1, 0, 0, 30)
 TopBar.BackgroundColor3 = Color3.fromRGB(220, 110, 20)
 TopBar.Text = "  Universal Weld & Rocket Tool"
 TopBar.TextColor3 = Color3.fromRGB(255, 255, 255)
-TopBar.TextSize = 15
+TopBar.TextSize = 13
 TopBar.TextXAlignment = Enum.TextXAlignment.Left
 TopBar.FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json", Enum.FontWeight.Bold)
 Instance.new("UICorner", TopBar).CornerRadius = UDim.new(0, 8)
@@ -1269,26 +1222,26 @@ UserInputService.InputChanged:Connect(function(input)
 end)
 
 local ConfigToggleBtn = Instance.new("TextButton", TopBar)
-ConfigToggleBtn.Size = UDim2.new(0, 60, 0, 25)
-ConfigToggleBtn.Position = UDim2.new(1, -125, 0, 5)
+ConfigToggleBtn.Size = UDim2.new(0, 50, 0, 20)
+ConfigToggleBtn.Position = UDim2.new(1, -105, 0, 5)
 ConfigToggleBtn.BackgroundColor3 = Color3.fromRGB(190, 90, 15)
 ConfigToggleBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
 ConfigToggleBtn.Text = "⚙️ Config"
-ConfigToggleBtn.TextSize = 11
+ConfigToggleBtn.TextSize = 10
 Instance.new("UICorner", ConfigToggleBtn).CornerRadius = UDim.new(0, 5)
 
 local InfoToggleBtn = Instance.new("TextButton", TopBar)
-InfoToggleBtn.Size = UDim2.new(0, 50, 0, 25)
-InfoToggleBtn.Position = UDim2.new(1, -60, 0, 5)
+InfoToggleBtn.Size = UDim2.new(0, 42, 0, 20)
+InfoToggleBtn.Position = UDim2.new(1, -50, 0, 5)
 InfoToggleBtn.BackgroundColor3 = Color3.fromRGB(190, 90, 15)
 InfoToggleBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
 InfoToggleBtn.Text = "ℹ️ Info"
-InfoToggleBtn.TextSize = 11
+InfoToggleBtn.TextSize = 10
 Instance.new("UICorner", InfoToggleBtn).CornerRadius = UDim.new(0, 5)
 
 local ConfigFrame = Instance.new("ScrollingFrame", ScreenGui)
 ConfigFrame.Size = UDim2.new(0, 220, 0, 390)
-ConfigFrame.Position = UDim2.new(0.4, 330, 0.3, 0)
+ConfigFrame.Position = UDim2.new(0.4, 270, 0.3, 0)
 ConfigFrame.BackgroundColor3 = Color3.fromRGB(245, 130, 32)
 ConfigFrame.BorderSizePixel = 0
 ConfigFrame.Visible = false
@@ -1334,19 +1287,19 @@ ConfigToggleBtn.MouseButton1Click:Connect(function()
 end)
 
 local InfoFrame = Instance.new("Frame", ScreenGui)
-InfoFrame.Size = UDim2.new(0, 260, 0, 415)
-InfoFrame.Position = UDim2.new(0.4, -270, 0.3, 0)
+InfoFrame.Size = UDim2.new(0, 230, 0, 295)
+InfoFrame.Position = UDim2.new(0.4, -240, 0.3, 0)
 InfoFrame.BackgroundColor3 = Color3.fromRGB(245, 130, 32)
 InfoFrame.BorderSizePixel = 0
 InfoFrame.Visible = false
 Instance.new("UICorner", InfoFrame).CornerRadius = UDim.new(0, 8)
 
 local InfoTitle = Instance.new("TextLabel", InfoFrame)
-InfoTitle.Size = UDim2.new(1, 0, 0, 35)
+InfoTitle.Size = UDim2.new(1, 0, 0, 30)
 InfoTitle.BackgroundColor3 = Color3.fromRGB(220, 110, 20)
 InfoTitle.Text = "  Information Guide"
 InfoTitle.TextColor3 = Color3.fromRGB(255, 255, 255)
-InfoTitle.TextSize = 14
+InfoTitle.TextSize = 13
 InfoTitle.TextXAlignment = Enum.TextXAlignment.Left
 InfoTitle.FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json", Enum.FontWeight.Bold)
 Instance.new("UICorner", InfoTitle).CornerRadius = UDim.new(0, 8)
@@ -1379,8 +1332,8 @@ InfoToggleBtn.MouseButton1Click:Connect(function()
 end)
 
 local InfoText = Instance.new("TextLabel", InfoFrame)
-InfoText.Size = UDim2.new(0, 230, 0, 360)
-InfoText.Position = UDim2.new(0, 15, 0, 45)
+InfoText.Size = UDim2.new(0, 200, 0, 250)
+InfoText.Position = UDim2.new(0, 15, 0, 38)
 InfoText.BackgroundTransparency = 1
 InfoText.TextColor3 = Color3.fromRGB(255, 255, 255)
 InfoText.TextSize = 9
@@ -1394,7 +1347,6 @@ InfoText.Text = [[TARGET COMMANDS:
 • random: Picks a random player in server.
 
 FEATURES:
-• Walkfling: Flings anyone touched while allowing normal player movement without welds.
 • Soaring beast: Teleports around target then flings to void.
 • Rocket: Launches user and target up with Velocity.
 • Rocket Row: Fires transparent orbs (20 studs) that queue hit players sequentially.
@@ -1406,8 +1358,6 @@ FEATURES:
 • Slam: Directional push using 🎯 Pick Dir tool.
 • Torture: Descends slowly from high above and stuns.
 • Stop Weld: Releases active welds.]]
-
-
 --// PART 5: Configuration Elements, Action Buttons & Initialization
 local AngleLabel = Instance.new("TextLabel", ConfigFrame)
 AngleLabel.Size = UDim2.new(0, 190, 0, 20)
@@ -1765,23 +1715,23 @@ TortureTimeBox.FocusLost:Connect(function()
 end)
 
 local TargetBox = Instance.new("TextBox", MainFrame)
-TargetBox.Size = UDim2.new(0, 215, 0, 30)
-TargetBox.Position = UDim2.new(0, 15, 0, 45)
+TargetBox.Size = UDim2.new(0, 175, 0, 24)
+TargetBox.Position = UDim2.new(0, 10, 0, 38)
 TargetBox.BackgroundColor3 = Color3.fromRGB(220, 110, 20)
 TargetBox.TextColor3 = Color3.fromRGB(255, 255, 255)
 TargetBox.PlaceholderText = "Target: Name, nearest..."
 TargetBox.Text = ""
-TargetBox.TextSize = 12
-Instance.new("UICorner", TargetBox).CornerRadius = UDim.new(0, 6)
+TargetBox.TextSize = 11
+Instance.new("UICorner", TargetBox).CornerRadius = UDim.new(0, 5)
 
 local GiveToolBtn = Instance.new("TextButton", MainFrame)
-GiveToolBtn.Size = UDim2.new(0, 65, 0, 30)
-GiveToolBtn.Position = UDim2.new(0, 240, 0, 45)
+GiveToolBtn.Size = UDim2.new(0, 55, 0, 24)
+GiveToolBtn.Position = UDim2.new(0, 190, 0, 38)
 GiveToolBtn.BackgroundColor3 = Color3.fromRGB(190, 90, 15)
 GiveToolBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
 GiveToolBtn.Text = "🎯 Tool"
-GiveToolBtn.TextSize = 12
-Instance.new("UICorner", GiveToolBtn).CornerRadius = UDim.new(0, 6)
+GiveToolBtn.TextSize = 11
+Instance.new("UICorner", GiveToolBtn).CornerRadius = UDim.new(0, 5)
 
 GiveToolBtn.MouseButton1Click:Connect(function()
 	local backpack = LocalPlayer:FindFirstChildOfClass("Backpack")
@@ -1817,34 +1767,34 @@ GiveToolBtn.MouseButton1Click:Connect(function()
 end)
 
 local VelocityBox = Instance.new("TextBox", MainFrame)
-VelocityBox.Size = UDim2.new(0, 140, 0, 26)
-VelocityBox.Position = UDim2.new(0, 15, 0, 80)
+VelocityBox.Size = UDim2.new(0, 112, 0, 22)
+VelocityBox.Position = UDim2.new(0, 10, 0, 66)
 VelocityBox.BackgroundColor3 = Color3.fromRGB(220, 110, 20)
 VelocityBox.TextColor3 = Color3.fromRGB(255, 255, 255)
 VelocityBox.PlaceholderText = "Velocity"
 VelocityBox.Text = "200"
-VelocityBox.TextSize = 12
-Instance.new("UICorner", VelocityBox).CornerRadius = UDim.new(0, 6)
+VelocityBox.TextSize = 11
+Instance.new("UICorner", VelocityBox).CornerRadius = UDim.new(0, 5)
 
 local ReturnTimeBox = Instance.new("TextBox", MainFrame)
-ReturnTimeBox.Size = UDim2.new(0, 140, 0, 26)
-ReturnTimeBox.Position = UDim2.new(0, 165, 0, 80)
+ReturnTimeBox.Size = UDim2.new(0, 112, 0, 22)
+ReturnTimeBox.Position = UDim2.new(0, 133, 0, 66)
 ReturnTimeBox.BackgroundColor3 = Color3.fromRGB(220, 110, 20)
 ReturnTimeBox.TextColor3 = Color3.fromRGB(255, 255, 255)
 ReturnTimeBox.PlaceholderText = "Time"
 ReturnTimeBox.Text = "0.5"
-ReturnTimeBox.TextSize = 12
-Instance.new("UICorner", ReturnTimeBox).CornerRadius = UDim.new(0, 6)
+ReturnTimeBox.TextSize = 11
+Instance.new("UICorner", ReturnTimeBox).CornerRadius = UDim.new(0, 5)
 
 local function createButton(text, posY, width, posX, callback)
 	local btn = Instance.new("TextButton", MainFrame)
-	btn.Size = UDim2.new(0, width or 290, 0, 28)
-	btn.Position = UDim2.new(0, posX or 15, 0, posY)
+	btn.Size = UDim2.new(0, width or 240, 0, 23)
+	btn.Position = UDim2.new(0, posX or 10, 0, posY)
 	btn.BackgroundColor3 = Color3.fromRGB(190, 90, 15)
 	btn.TextColor3 = Color3.fromRGB(255, 255, 255)
 	btn.Text = text
-	btn.TextSize = 13
-	Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 6)
+	btn.TextSize = 11
+	Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 5)
 	btn.MouseButton1Click:Connect(function()
 		local targetName = TargetBox.Text
 		callback(targetName, btn)
@@ -1852,49 +1802,45 @@ local function createButton(text, posY, width, posX, callback)
 	return btn
 end
 
-createButton("Walkfling [OFF]", 112, 290, 15, function(_, btn)
-	toggleWalkfling(btn)
-end)
-
-createButton("Soaring beast", 145, 290, 15, function(target)
+createButton("Soaring beast", 92, 240, 10, function(target)
 	SoaringBeast(target, LocalPlayer)
 end)
 
 local RocketBtn = Instance.new("TextButton", MainFrame)
-RocketBtn.Size = UDim2.new(0, 70, 0, 28)
-RocketBtn.Position = UDim2.new(0, 15, 0, 178)
+RocketBtn.Size = UDim2.new(0, 56, 0, 23)
+RocketBtn.Position = UDim2.new(0, 10, 0, 118)
 RocketBtn.BackgroundColor3 = Color3.fromRGB(190, 90, 15)
 RocketBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
 RocketBtn.Text = "Rocket"
-RocketBtn.TextSize = 12
-Instance.new("UICorner", RocketBtn).CornerRadius = UDim.new(0, 6)
+RocketBtn.TextSize = 10
+Instance.new("UICorner", RocketBtn).CornerRadius = UDim.new(0, 5)
 
 local RocketRowBtn = Instance.new("TextButton", MainFrame)
-RocketRowBtn.Size = UDim2.new(0, 72, 0, 28)
-RocketRowBtn.Position = UDim2.new(0, 88, 0, 178)
+RocketRowBtn.Size = UDim2.new(0, 58, 0, 23)
+RocketRowBtn.Position = UDim2.new(0, 70, 0, 118)
 RocketRowBtn.BackgroundColor3 = Color3.fromRGB(170, 75, 10)
 RocketRowBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
 RocketRowBtn.Text = "Rocket Row"
-RocketRowBtn.TextSize = 10
-Instance.new("UICorner", RocketRowBtn).CornerRadius = UDim.new(0, 6)
+RocketRowBtn.TextSize = 9
+Instance.new("UICorner", RocketRowBtn).CornerRadius = UDim.new(0, 5)
 
 local ModeBtn = Instance.new("TextButton", MainFrame)
-ModeBtn.Size = UDim2.new(0, 68, 0, 28)
-ModeBtn.Position = UDim2.new(0, 163, 0, 178)
+ModeBtn.Size = UDim2.new(0, 55, 0, 23)
+ModeBtn.Position = UDim2.new(0, 132, 0, 118)
 ModeBtn.BackgroundColor3 = Color3.fromRGB(170, 75, 10)
 ModeBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
 ModeBtn.Text = "Mode R"
-ModeBtn.TextSize = 10
-Instance.new("UICorner", ModeBtn).CornerRadius = UDim.new(0, 6)
+ModeBtn.TextSize = 9
+Instance.new("UICorner", ModeBtn).CornerRadius = UDim.new(0, 5)
 
 local SlamDropBtn = Instance.new("TextButton", MainFrame)
-SlamDropBtn.Size = UDim2.new(0, 75, 0, 28)
-SlamDropBtn.Position = UDim2.new(0, 234, 0, 178)
+SlamDropBtn.Size = UDim2.new(0, 61, 0, 23)
+SlamDropBtn.Position = UDim2.new(0, 191, 0, 118)
 SlamDropBtn.BackgroundColor3 = Color3.fromRGB(170, 75, 10)
 SlamDropBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
 SlamDropBtn.Text = "Slam-drop"
-SlamDropBtn.TextSize = 11
-Instance.new("UICorner", SlamDropBtn).CornerRadius = UDim.new(0, 6)
+SlamDropBtn.TextSize = 10
+Instance.new("UICorner", SlamDropBtn).CornerRadius = UDim.new(0, 5)
 
 local currentRocketMode = "Rocket"
 
@@ -2037,27 +1983,27 @@ SlamDropBtn.MouseButton1Click:Connect(function()
 	SlamDrop(target, LocalPlayer, velVal)
 end)
 
-createButton("Firework", 211, 290, 15, function(target)
+createButton("Firework", 144, 240, 10, function(target)
 	Firework(target, LocalPlayer)
 end)
 
-createButton("Combo", 244, 290, 15, function(target)
+createButton("Combo", 169, 240, 10, function(target)
 	Combo(target, LocalPlayer)
 end)
 
-createButton("Slam", 277, 195, 15, function(target)
+createButton("Slam", 194, 160, 10, function(target)
 	local velVal = tonumber(VelocityBox.Text) or 0
 	Slam(target, LocalPlayer, velVal)
 end)
 
 local PickDirBtn = Instance.new("TextButton", MainFrame)
-PickDirBtn.Size = UDim2.new(0, 90, 0, 28)
-PickDirBtn.Position = UDim2.new(0, 215, 0, 277)
+PickDirBtn.Size = UDim2.new(0, 75, 0, 23)
+PickDirBtn.Position = UDim2.new(0, 175, 0, 194)
 PickDirBtn.BackgroundColor3 = Color3.fromRGB(170, 75, 10)
 PickDirBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
 PickDirBtn.Text = "Pick Dir"
-PickDirBtn.TextSize = 12
-Instance.new("UICorner", PickDirBtn).CornerRadius = UDim.new(0, 6)
+PickDirBtn.TextSize = 10
+Instance.new("UICorner", PickDirBtn).CornerRadius = UDim.new(0, 5)
 
 PickDirBtn.MouseButton1Click:Connect(function()
 	SelectedSlamTarget = nil
@@ -2084,16 +2030,16 @@ PickDirBtn.MouseButton1Click:Connect(function()
 	end)
 end)
 
-createButton("Torture", 310, 138, 15, function(target)
+createButton("Torture", 219, 115, 10, function(target)
 	local velVal = tonumber(VelocityBox.Text) or 0
 	Torture(target, LocalPlayer, velVal)
 end)
 
-createButton("Stop Weld", 310, 138, 167, function()
+createButton("Stop Weld", 219, 115, 135, function()
 	StopWeld()
 end)
 
-createButton("Movement Breaker", 343, 290, 15, function(target)
+createButton("Movement Breaker", 244, 240, 10, function(target)
 	MovementBreaker(target, LocalPlayer)
 end)
 
